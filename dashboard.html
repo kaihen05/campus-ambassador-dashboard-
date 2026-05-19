@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>腾讯校园大使内推数据看板</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; background: #0a0e27; color: #e0e6f0; padding: 20px; min-height: 100vh; }
+
+/* ---- 顶部栏 ---- */
+.header {
+  background: linear-gradient(135deg, #0d1333, #1a1f4e);
+  border-bottom: 2px solid #2a3a7d;
+  padding: 14px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 12px 12px 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header h1 { font-size: 22px; background: linear-gradient(90deg, #00d4ff, #7b61ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.header-right { display: flex; align-items: center; gap: 14px; }
+
+/* ---- 上传按钮 ---- */
+.upload-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, #7b61ff, #00d4ff);
+  color: #fff; border: none; border-radius: 24px;
+  padding: 8px 18px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.upload-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(123,97,255,.4); }
+.upload-btn:active { transform: translateY(0); }
+.upload-btn svg { width: 16px; height: 16px; }
+.upload-input { display: none; }
+
+/* ---- 成功提示 ---- */
+.toast {
+  position: fixed; top: 80px; right: 30px; z-index: 999;
+  background: linear-gradient(135deg, #1a3a2a, #0d2a1a);
+  border: 1px solid #00e676; border-radius: 10px;
+  padding: 12px 20px; color: #00e676; font-size: 13px;
+  display: none; animation: slideIn .3s ease;
+}
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+/* ---- 上传遮罩 ---- */
+#uploadOverlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(10,14,39,.92); display: flex;
+  align-items: center; justify-content: center; flex-direction: column; gap: 20px;
+}
+.upload-hero { text-align: center; }
+.upload-hero h2 { font-size: 28px; color: #b8c5e8; margin-bottom: 10px; }
+.upload-hero p { color: #4a5a9d; font-size: 14px; line-height: 1.8; }
+.upload-dropzone {
+  border: 2px dashed #2a3a7d; border-radius: 20px;
+  padding: 50px 60px; text-align: center; cursor: pointer;
+  transition: all .2s; background: #111833;
+}
+.upload-dropzone:hover, .upload-dropzone.dragover {
+  border-color: #7b61ff; background: #1a2550;
+}
+.upload-dropzone svg { width: 60px; height: 60px; color: #4a5a9d; margin-bottom: 16px; }
+.upload-dropzone p { color: #6b7db3; font-size: 15px; }
+.upload-dropzone .hint { font-size: 12px; color: #3a4a7d; margin-top: 6px; }
+#uploadProgress { display: none; text-align: center; color: #00d4ff; font-size: 14px; }
+.spinner {
+  width: 40px; height: 40px; border: 3px solid #1e2d6d;
+  border-top-color: #00d4ff; border-radius: 50%;
+  animation: spin .8s linear infinite; margin: 0 auto 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- KPI卡片 ---- */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
+.kpi-card {
+  background: linear-gradient(135deg, #111833, #1a2550);
+  border: 1px solid #2a3a7d; border-radius: 12px;
+  padding: 20px; text-align: center; transition: all .2s;
+}
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+.kpi-card .label { font-size: 12px; color: #6b7db3; margin-bottom: 6px; }
+.kpi-card .value { font-size: 28px; font-weight: 700; background: linear-gradient(90deg, #00d4ff, #7b61ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.kpi-card .sub { font-size: 11px; color: #4a5a9d; margin-top: 4px; }
+
+/* ---- 通用 ---- */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.chart-card { background: #111833; border: 1px solid #1e2d6d; border-radius: 12px; padding: 16px; }
+.chart-title { font-size: 14px; color: #b8c5e8; margin-bottom: 12px; border-left: 3px solid #7b61ff; padding-left: 10px; }
+.chart { height: 300px; }
+.section-title { font-size: 16px; color: #b8c5e8; margin: 24px 0 12px; border-left: 3px solid #00d4ff; padding-left: 10px; }
+.toggle-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.toggle-btn { padding: 4px 14px; border-radius: 20px; border: 1px solid #2a3a7d; background: transparent; color: #6b7db3; cursor: pointer; font-size: 12px; transition: all .15s; }
+.toggle-btn.active { background: #7b61ff; color: #fff; border-color: #7b61ff; }
+
+/* ---- 表格 ---- */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #1a2550; color: #6b7db3; padding: 8px 10px; text-align: left; border-bottom: 1px solid #1e2d6d; position: sticky; top: 0; }
+td { padding: 8px 10px; border-bottom: 1px solid #1a2040; }
+tr:hover { background: #1a2550; }
+.table-wrap { max-height: 300px; overflow-y: auto; border-radius: 8px; }
+.rank-badge { display: inline-block; width: 20px; height: 20px; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; }
+.rank-1 { background: #ffd700; color: #000; }
+.rank-2 { background: #c0c0c0; color: #000; }
+.rank-3 { background: #cd7f32; color: #fff; }
+.rank-other { background: #2a3a7d; color: #6b7db3; }
+.elite-tag { background: linear-gradient(135deg, #f0a500, #ff6b00); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-left: 4px; }
+.offer-tag { background: #00e676; color: #000; font-size: 11px; padding: 1px 6px; border-radius: 8px; }
+
+/* ---- 三层漏斗 ---- */
+.funnel-stages { display: flex; align-items: stretch; gap: 0; margin-bottom: 20px; }
+.funnel-stage { flex: 1; position: relative; background: linear-gradient(135deg, #111833 0%, #1a2550 100%); border: 1px solid #2a3a7d; border-radius: 16px; padding: 24px 20px; text-align: center; transition: all .3s ease; overflow: hidden; }
+.funnel-stage:hover { transform: translateY(-4px); box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+.funnel-stage::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--stage-color); }
+.funnel-stage .stage-layer { font-size: 10px; letter-spacing: 2px; color: #4a5a9d; text-transform: uppercase; margin-bottom: 10px; }
+.funnel-stage .stage-name { font-size: 14px; color: #b8c5e8; margin-bottom: 12px; line-height: 1.4; }
+.funnel-stage .stage-value { font-size: 36px; font-weight: 800; color: var(--stage-color); line-height: 1; margin-bottom: 8px; }
+.funnel-stage .stage-rate { font-size: 12px; color: #6b7db3; }
+.funnel-stage .stage-detail { font-size: 11px; color: #4a5a9d; margin-top: 10px; line-height: 1.6; text-align: left; padding: 8px 10px; background: #0a0e27; border-radius: 8px; }
+.funnel-arrow { display: flex; align-items: center; justify-content: center; width: 60px; flex-shrink: 0; }
+.funnel-arrow-inner { text-align: center; }
+.funnel-arrow .arrow-num { font-size: 18px; font-weight: 700; color: #f0a500; }
+.funnel-arrow .arrow-pct { font-size: 10px; color: #6b7db3; }
+.funnel-arrow svg { color: #2a3a7d; margin: 4px 0; }
+
+/* ---- 主内容区 ---- */
+#content { display: none; }
+
+/* ---- 7垂类卡片 ---- */
+.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.cat-card {
+  background: linear-gradient(135deg, #111833 0%, #1a2040 100%);
+  border: 1px solid #1e2d6d;
+  border-radius: 14px;
+  padding: 20px;
+  transition: all .3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.cat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #7b61ff, #00d4ff);
+  border-radius: 14px 14px 0 0;
+}
+.cat-card:hover {
+  border-color: #3a4a8d;
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 212, 255, 0.08);
+}
+.cat-card .cat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.cat-card .cat-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e8ecf8;
+  letter-spacing: 0.5px;
+}
+.cat-card .cat-badge {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(123, 97, 255, 0.15);
+  color: #a48eff;
+  font-weight: 600;
+}
+.cat-card .cat-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.cat-card .cat-metric {
+  text-align: center;
+}
+.cat-card .cat-metric-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: #00d4ff;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.cat-card .cat-metric-label {
+  font-size: 11px;
+  color: #6b7db3;
+  font-weight: 500;
+}
+.cat-card .cat-offer-value {
+  color: #00e676;
+}
+.cat-bar-bg {
+  background: rgba(26, 32, 64, 0.8);
+  border-radius: 8px;
+  height: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.cat-bar-fill {
+  height: 8px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #7b61ff 0%, #00d4ff 50%, #00e676 100%);
+  transition: width .8s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+.cat-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 20px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2));
+  border-radius: 0 8px 8px 0;
+}
+.cat-card .cat-rate {
+  font-size: 11px;
+  color: #6b7db3;
+  text-align: right;
+  font-weight: 500;
+}
+.cat-card .cat-rate span {
+  color: #f0a500;
+  font-weight: 700;
+}
+
+/* ---- 青云模块 ---- */
+.qingyun-hero { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; margin-bottom: 16px; }
+.qy-stat-card { background: linear-gradient(135deg, #111833, #1a2550); border: 1px solid #2a3a7d; border-radius: 12px; padding: 18px 20px; text-align: center; }
+.qy-stat-card .qyv { font-size: 30px; font-weight: 800; color: #00d4ff; }
+.qy-stat-card .qyl { font-size: 11px; color: #6b7db3; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ======================== 顶部栏 ======================== -->
+<div class="header">
+  <h1>📊 腾讯校园大使内推数据看板</h1>
+  <div class="header-right">
+    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      导入 Excel
+    </button>
+    <input type="file" id="fileInput" class="upload-input" accept=".xlsx,.xls">
+  </div>
+</div>
+
+<!-- ======================== 上传遮罩 ======================== -->
+<div id="uploadOverlay">
+  <div class="upload-hero">
+    <h2>欢迎使用校园大使数据看板</h2>
+    <p>上传内推数据 Excel 文件，即可自动生成完整看板</p>
+  </div>
+  <div class="upload-dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3-3 3 3"/></svg>
+    <p id="dropText">点击选择 Excel 文件 或 拖拽文件到此处</p>
+    <div class="hint">支持 .xlsx / .xls，文件大小勿超过 100MB</div>
+  </div>
+  <div id="uploadProgress">
+    <div class="spinner"></div>
+    <div>正在解析 Excel，请稍候...</div>
+  </div>
+  <div id="uploadError" style="display:none; color:#ff6b8a; font-size:13px; text-align:center;"></div>
+</div>
+
+<!-- ======================== 提示 ======================== -->
+<div class="toast" id="toast"></div>
+
+<!-- ======================== 主内容（上传后显示）==================== -->
+<div id="content">
+
+  <!-- KPI 8宫格 -->
+  <div class="kpi-grid" id="kpiRow"></div>
+
+  <!-- 简历流程分布 -->
+  <div class="section-title">📊 简历流程分布</div>
+  <div class="funnel-stages" id="funnelStages">
+    <div class="funnel-stage" style="--stage-color:#00d4ff">
+      <div class="stage-layer">Layer 1</div>
+      <div class="stage-name">入库简历数</div>
+      <div class="stage-value" id="stage1Val">—</div>
+      <div class="stage-rate">占总量 100%</div>
+    </div>
+    <div class="funnel-arrow">
+      <div class="funnel-arrow-inner">
+        <div class="arrow-num" id="arrow1Num">—</div>
+        <div class="arrow-pct">→ 面试发起率</div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+    <div class="funnel-stage" style="--stage-color:#7b61ff">
+      <div class="stage-layer">Layer 2</div>
+      <div class="stage-name">发起面试数</div>
+      <div class="stage-value" id="stage2Val">—</div>
+      <div class="stage-rate" id="stage2Rate">—</div>
+    </div>
+    <div class="funnel-arrow">
+      <div class="funnel-arrow-inner">
+        <div class="arrow-num" id="arrow2Num">—</div>
+        <div class="arrow-pct">→ 录用流程率</div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+    <div class="funnel-stage" style="--stage-color:#00e676">
+      <div class="stage-layer">Layer 3</div>
+      <div class="stage-name">录用流程中</div>
+      <div class="stage-value" id="stage3Val">—</div>
+      <div class="stage-rate" id="stage3Rate">—</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="chart-card"><div class="chart-title">简历流程漏斗</div><div id="chartFunnel" class="chart" style="height:320px;"></div></div>
+    <div class="chart-card"><div class="chart-title">各流程节点明细</div><div id="chartFlowPie" class="chart" style="height:320px;"></div></div>
+  </div>
+
+  <!-- BG + 青云 -->
+  <div class="section-title">🏢 各BG / 青云计划分布</div>
+  <div class="grid-2">
+    <div class="chart-card"><div class="chart-title">各BG简历推荐数量</div><div id="chartBG" class="chart"></div></div>
+    <div class="chart-card"><div class="chart-title">青云计划分布</div><div id="chartQingyun" class="chart"></div></div>
+  </div>
+
+  <!-- 青云 TOP 岗位 -->
+  <div class="section-title">🚀 青云计划 — TOP10 投递岗位类</div>
+  <div class="grid-2">
+    <div class="chart-card"><div id="chartQyjobs" class="chart"></div></div>
+    <div class="chart-card" id="qyJobsTableCard">
+      <div class="chart-title">青云岗位明细</div>
+      <div id="qyJobsTable" class="table-wrap" style="max-height:280px;"></div>
+    </div>
+  </div>
+
+  <!-- 7个垂类 -->
+  <div class="section-title">📂 7个垂类内推详情</div>
+  <div class="cat-grid" id="catCards"></div>
+
+  <!-- 区域 / UHR / 垂类 -->
+  <div class="grid-3">
+    <div class="chart-card"><div class="chart-title">By 区域</div><div id="chartRegion" class="chart"></div></div>
+    <div class="chart-card"><div class="chart-title">By UHR</div><div id="chartUHR" class="chart"></div></div>
+    <div class="chart-card">
+      <div class="chart-title">7个垂类分布</div>
+      <div id="chartCategory" class="chart" style="height:280px;"></div>
+    </div>
+  </div>
+
+  <!-- 校园大使 -->
+  <div class="section-title">🎖️ 校园大使排名</div>
+  <div class="grid-2">
+    <div class="chart-card">
+      <div class="toggle-row">
+        <button class="toggle-btn active" id="btnResumes" onclick="switchAmbassadorChart('resumes')">By 内推数</button>
+        <button class="toggle-btn" id="btnOffers" onclick="switchAmbassadorChart('offers')">By Offer数</button>
+      </div>
+      <div id="chartAmbassador" class="chart"></div>
+    </div>
+    <div class="chart-card">
+      <div style="font-size:12px;color:#6b7db3;margin-bottom:8px;">完整排名（可滚动）</div>
+      <div id="tableAmbassador" class="table-wrap" style="max-height:300px;"></div>
+    </div>
+  </div>
+
+  <!-- 院校 -->
+  <div class="section-title">🏫 院校排名 TOP50</div>
+  <div class="grid-2">
+    <div class="chart-card"><div id="chartSchool" class="chart"></div></div>
+    <div class="chart-card">
+      <div id="tableSchool" class="table-wrap" style="max-height:320px;"></div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<script src="./echarts.min.js"></script>
+<script>
+// ============================================================
+// 全局状态
+// ============================================================
+let DATA = null;              // 当前看板数据
+let ambassadorChartSort = 'resumes'; // 当前大使图排序
+
+// ============================================================
+// 上传流程
+// ============================================================
+const fileInput = document.getElementById('fileInput');
+const overlay = document.getElementById('uploadOverlay');
+const progress = document.getElementById('uploadProgress');
+const dropzone = document.getElementById('dropzone');
+const dropText = document.getElementById('dropText');
+const uploadError = document.getElementById('uploadError');
+
+fileInput.addEventListener('change', handleFile);
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) { document.getElementById('fileInput').files = e.dataTransfer.files; handleFile({ target: { files: [f] } }); }
+});
+
+async function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  uploadError.style.display = 'none';
+  dropzone.style.display = 'none';
+  document.getElementById('uploadProgress').style.display = 'block';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || '上传失败');
+
+    DATA = json.data;
+    console.log('[handleFile] DATA keys:', Object.keys(DATA), 'totalResumes:', DATA.summary?.totalResumes);
+    overlay.style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    renderAll();
+
+    showToast('✅ ' + json.message);
+  } catch (err) {
+    uploadError.textContent = '❌ ' + err.message;
+    uploadError.style.display = 'block';
+    dropzone.style.display = 'block';
+    document.getElementById('uploadProgress').style.display = 'none';
+  }
+  fileInput.value = '';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 4000);
+}
+
+// ============================================================
+// 渲染入口
+// ============================================================
+function renderAll() {
+  console.log('[renderAll] DATA:', JSON.stringify(Object.keys(DATA || {})));
+  try { renderKPI(); console.log('[renderAll] KPI ok'); } catch(e) { console.error('[renderAll] KPI error:', e); }
+  try { renderFunnelStages(); console.log('[renderAll] FunnelStages ok'); } catch(e) { console.error('[renderAll] FunnelStages error:', e); }
+  try { renderFunnelChart(); console.log('[renderAll] FunnelChart ok'); } catch(e) { console.error('[renderAll] FunnelChart error:', e); }
+  try { renderFlowPie(); console.log('[renderAll] FlowPie ok'); } catch(e) { console.error('[renderAll] FlowPie error:', e); }
+  try { renderBG(); console.log('[renderAll] BG ok'); } catch(e) { console.error('[renderAll] BG error:', e); }
+  try { renderQingyun(); console.log('[renderAll] Qingyun ok'); } catch(e) { console.error('[renderAll] Qingyun error:', e); }
+  try { renderQyjobs(); console.log('[renderAll] Qyjobs ok'); } catch(e) { console.error('[renderAll] Qyjobs error:', e); }
+  try { renderQyjobsTable(); console.log('[renderAll] QyjobsTable ok'); } catch(e) { console.error('[renderAll] QyjobsTable error:', e); }
+  try { renderCatCards(); console.log('[renderAll] CatCards ok'); } catch(e) { console.error('[renderAll] CatCards error:', e); }
+  try { renderCategory(); console.log('[renderAll] Category ok'); } catch(e) { console.error('[renderAll] Category error:', e); }
+  try { renderRegion(); console.log('[renderAll] Region ok'); } catch(e) { console.error('[renderAll] Region error:', e); }
+  try { renderUHR(); console.log('[renderAll] UHR ok'); } catch(e) { console.error('[renderAll] UHR error:', e); }
+  try { renderAmbassadorChart(); console.log('[renderAll] AmbassadorChart ok'); } catch(e) { console.error('[renderAll] AmbassadorChart error:', e); }
+  try { renderAmbassadorTable(); console.log('[renderAll] AmbassadorTable ok'); } catch(e) { console.error('[renderAll] AmbassadorTable error:', e); }
+  try { renderSchoolChart(); console.log('[renderAll] SchoolChart ok'); } catch(e) { console.error('[renderAll] SchoolChart error:', e); }
+  try { renderSchoolTable(); console.log('[renderAll] SchoolTable ok'); } catch(e) { console.error('[renderAll] SchoolTable error:', e); }
+  console.log('[renderAll] Done');
+}
+
+// ============================================================
+// KPI
+// ============================================================
+function renderKPI() {
+  const s = DATA.summary;
+  const cards = [
+    { label: '入库简历总数', value: s.totalResumes.toLocaleString(), sub: '覆盖 ' + s.totalAmbassadors + ' 位大使 / ' + s.totalSchools + ' 所院校' },
+    { label: 'Offer 总数', value: s.totalOffers.toLocaleString(), sub: '实习 ' + s.internOffer + ' + 应届 ' + s.graduateOffer },
+    { label: '总 Offer 率', value: s.offerRate + '%', sub: '整体转化率' },
+    { label: '精英大师', value: s.eliteCount, sub: '内推 ≥' + s.eliteThreshold + ' 人', cls: 'elites' },
+    { label: '青云计划', value: s.qingyunResumes.toLocaleString(), sub: 'Offer ' + s.qingyunOffers + ' (率 ' + s.qingyunOfferRate + '%)' },
+    { label: '人均推荐', value: Math.round(s.totalResumes / s.totalAmbassadors), sub: '简历/大使' },
+    { label: '青云 Offer', value: s.qingyunOffers, sub: '实习 ' + s.qingyunInternOffer + ' + 应届 ' + s.qingyunGraduateOffer },
+    { label: '7个垂类简历', value: DATA.categoryData.reduce((a, c) => a + c.resumes, 0).toLocaleString(), sub: '详见下方垂类分析' },
+  ];
+  const row = document.getElementById('kpiRow');
+  row.innerHTML = cards.map(c => `
+    <div class="kpi-card">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+      <div class="sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+// ============================================================
+// 漏斗卡片（纯数字展示）
+// ============================================================
+function renderFunnelStages() {
+  const dist = DATA.statusDist;
+  const L1 = DATA.summary.totalResumes;
+  const L2stages = ['初试','集体面试','复试','HR面试','GM/面委会/EVP面试','已锁定在项目'];
+  const L3stages = ['实习生考核中','实习已录用','毕业生已录用'];
+  const L2 = L2stages.reduce((s, n) => s + (dist[n] || 0), 0);
+  const L3 = L3stages.reduce((s, n) => s + (dist[n] || 0), 0);
+
+  document.getElementById('stage1Val').textContent = L1.toLocaleString();
+  document.getElementById('stage2Val').textContent = L2.toLocaleString();
+  document.getElementById('stage3Val').textContent = L3.toLocaleString();
+  document.getElementById('stage2Rate').textContent = `${(L2/L1*100).toFixed(2)}%`;
+  document.getElementById('stage3Rate').textContent = `${(L3/L1*100).toFixed(2)}%`;
+  document.getElementById('arrow1Num').textContent = `${(L2/L1*100).toFixed(1)}%`;
+  document.getElementById('arrow2Num').textContent = `${(L3/L2*100).toFixed(1)}%`;
+}
+
+// ============================================================
+// 三层漏斗（ECharts 版本 — 聚合三层，不展示中间态明细）
+function renderFunnelChart() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartFunnel')) || echarts.init(document.getElementById('chartFunnel'));
+  const dist = DATA.statusDist;
+  const L1 = DATA.summary.totalResumes;
+  const L2stages = ['初试','集体面试','复试','HR面试','GM/面委会/EVP面试','已锁定在项目'];
+  const L3stages = ['实习生考核中','实习已录用','毕业生已录用'];
+  const L2 = L2stages.reduce((s, n) => s + (dist[n] || 0), 0);
+  const L3 = L3stages.reduce((s, n) => s + (dist[n] || 0), 0);
+
+  const funnelData = [
+    { name: '入库简历', value: L1 },
+    { name: '发起面试', value: L2 },
+    { name: '录用流程中', value: L3 }
+  ];
+
+  chart.setOption({
+    tooltip: {
+      trigger: 'item',
+      formatter: p => {
+        const base = p.dataIndex === 0 ? L1 : p.dataIndex === 1 ? L2 : L3;
+        const rate = (p.value / L1 * 100).toFixed(2) + '%';
+        const prev = p.dataIndex === 0 ? '' : '<br>占总量：' + (p.value / L1 * 100).toFixed(2) + '%';
+        return p.name + '：<b>' + p.value.toLocaleString() + '</b>（' + rate + '）' + prev;
+      }
+    },
+    color: ['#00d4ff', '#7b61ff', '#00e676'],
+    series: [{
+      type: 'funnel',
+      left: '10%', top: '10%', bottom: '10%', width: '80%',
+      sort: 'descending',
+      gap: 6,
+      label: {
+        show: true, position: 'inside',
+        color: '#fff', fontSize: 13,
+        formatter: p => p.name + '\n' + p.value.toLocaleString()
+      },
+      data: funnelData,
+      itemStyle: { borderRadius: 8, borderColor: '#0a0e27', borderWidth: 2 }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 流程节点饼图
+// ============================================================
+function renderFlowPie() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartFlowPie')) || echarts.init(document.getElementById('chartFlowPie'));
+  const dist = DATA.statusDist;
+  const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
+  const colors = ['#00d4ff','#7b61ff','#00e676','#f0a500','#ff6b8a','#c084fc','#34d399','#fbbf24','#f87171','#60a5fa','#a78bfa','#6ee7b7'];
+  chart.setOption({
+    tooltip: {
+      trigger: 'item',
+      formatter: p => p.name + '：<b>' + p.value.toLocaleString() + '</b>（' + p.percent.toFixed(1) + '%）'
+    },
+    color: colors,
+    series: [{
+      type: 'pie',
+      radius: ['35%', '70%'],
+      center: ['50%', '50%'],
+      sort: 'descending',
+      label: { show: true, color: '#b8c5e8', fontSize: 10, formatter: p => p.name + ': ' + p.value.toLocaleString() },
+      labelLine: { show: true },
+      data: entries,
+      itemStyle: { borderRadius: 4, borderColor: '#0a0e27', borderWidth: 2 }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// BG
+// ============================================================
+function renderBG() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartBG')) || echarts.init(document.getElementById('chartBG'));
+  const sorted = [...DATA.bgData].sort((a, b) => b.value - a.value);
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => p[0].name + '<br/><b>' + p[0].value.toLocaleString() + '</b> 份' },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3' }, splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', data: sorted.map(d => d.name), axisLabel: { color: '#b8c5e8', fontSize: 11 }, inverse: true },
+    series: [{
+      type: 'bar', data: sorted.map(d => d.value),
+      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#00d4ff' }, { offset: 1, color: '#7b61ff' }]), borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: '#00d4ff', fontSize: 10, formatter: '{c}' }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 青云分布
+// ============================================================
+function renderQingyun() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartQingyun')) || echarts.init(document.getElementById('chartQingyun'));
+  const s = DATA.summary;
+  chart.setOption({
+    tooltip: { trigger: 'item', formatter: p => p.name + '<br/><b>' + p.value.toLocaleString() + '</b>' },
+    legend: { bottom: '5%', textStyle: { color: '#6b7db3', fontSize: 11 } },
+    series: [{
+      type: 'pie', radius: ['40%', '70%'], center: ['50%', '45%'],
+      label: { color: '#b8c5e8', fontSize: 12, formatter: '{b}\n{c}' },
+      data: [
+        { name: '青云实习', value: s.qingyunIntern },
+        { name: '青云计划-应届生', value: s.qingyunGrad }
+      ],
+      itemStyle: { borderRadius: 8, borderColor: '#0a0e27', borderWidth: 2 }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 青云岗位柱状图
+// ============================================================
+function renderQyjobs() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartQyjobs')) || echarts.init(document.getElementById('chartQyjobs'));
+  const jobs = (DATA.qingyunJobs || []).slice(0, 10);
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => p[0].name + '<br/><b>' + p[0].value + '</b> 人' },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3' }, splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', data: jobs.map(d => d.name).reverse(), axisLabel: { color: '#b8c5e8', fontSize: 10 } },
+    series: [{
+      type: 'bar', data: jobs.map(d => d.value).reverse(),
+      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#00d4ff' }, { offset: 1, color: '#00e676' }]), borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: '#00d4ff', fontSize: 10 }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 7垂类卡片
+// ============================================================
+function renderCatCards() {
+  const cats = DATA.categoryData;
+  const maxR = Math.max(...cats.map(c => c.resumes), 1);
+  const container = document.getElementById('catCards');
+  container.innerHTML = cats.map((c, idx) => {
+    const rate = c.resumes > 0 ? (c.offers / c.resumes * 100).toFixed(2) : '0.00';
+    const colors = ['#7b61ff', '#00d4ff', '#00e676', '#f0a500', '#ff6b8a', '#c084fc', '#34d399'];
+    const barColor = colors[idx % colors.length];
+    return `
+    <div class="cat-card">
+      <div class="cat-header">
+        <div class="cat-name">${c.name}</div>
+        <div class="cat-badge">${idx + 1}</div>
+      </div>
+      <div class="cat-metrics">
+        <div class="cat-metric">
+          <div class="cat-metric-value">${c.resumes.toLocaleString()}</div>
+          <div class="cat-metric-label">内推简历</div>
+        </div>
+        <div class="cat-metric">
+          <div class="cat-metric-value cat-offer-value">${c.offers}</div>
+          <div class="cat-metric-label">Offer</div>
+        </div>
+      </div>
+      <div class="cat-bar-bg">
+        <div class="cat-bar-fill" style="width:${c.resumes/maxR*100}%;background:linear-gradient(90deg, ${barColor}88, ${barColor})"></div>
+      </div>
+      <div class="cat-rate">转化率 <span>${rate}%</span></div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// 垂类饼图
+// ============================================================
+function renderCategory() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartCategory')) || echarts.init(document.getElementById('chartCategory'));
+  const cats = DATA.categoryData;
+  chart.setOption({
+    tooltip: { trigger: 'item', formatter: p => p.name + '<br/>简历 <b>' + p.value.toLocaleString() + '</b><br/>Offer <b>' + cats[p.dataIndex].offers + '</b>' },
+    legend: { orient: 'vertical', right: '3%', top: 'center', textStyle: { color: '#6b7db3', fontSize: 10 }, itemWidth: 10 },
+    series: [{
+      type: 'pie', radius: ['30%', '65%'],
+      data: cats.map(c => ({ name: c.name, value: c.resumes })),
+      label: { color: '#b8c5e8', fontSize: 10, formatter: '{b}:{c}' },
+      itemStyle: { borderRadius: 6, borderColor: '#0a0e27', borderWidth: 2 }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 区域
+// ============================================================
+function renderRegion() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartRegion')) || echarts.init(document.getElementById('chartRegion'));
+  const sorted = [...DATA.regionRank].sort((a, b) => b.resumes - a.resumes);
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+      const d = sorted[p[0].dataIndex];
+      return d.name + '<br/>简历 <b>' + d.resumes.toLocaleString() + '</b><br/>Offer <b>' + d.offers + '</b>';
+    }},
+    legend: { textStyle: { color: '#6b7db3', fontSize: 11 }, top: '2%' },
+    grid: { left: '3%', right: '8%', bottom: '3%', top: '12%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3' }, splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', data: sorted.map(d => d.name), axisLabel: { color: '#b8c5e8', fontSize: 11 }, inverse: true },
+    series: [
+      { name: '简历数', type: 'bar', data: sorted.map(d => d.resumes), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#00d4ff' }, { offset: 1, color: '#0099cc' }]), borderRadius: [0, 4, 4, 0] }, label: { show: true, position: 'right', color: '#00d4ff', fontSize: 10, formatter: '{c}' } },
+      { name: 'Offer', type: 'bar', data: sorted.map(d => d.offers), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#00e676' }, { offset: 1, color: '#00a854' }]), borderRadius: [0, 4, 4, 0] }, label: { show: true, position: 'right', color: '#00e676', fontSize: 10, formatter: '{c}' } }
+    ]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// UHR
+// ============================================================
+function renderUHR() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartUHR')) || echarts.init(document.getElementById('chartUHR'));
+  const top15 = DATA.uhrRank.slice(0, 15);
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+      const d = top15[p[0].dataIndex] || top15[0];
+      return d.name + '<br/>简历 <b>' + d.resumes.toLocaleString() + '</b><br/>Offer <b>' + d.offers + '</b>';
+    }},
+    legend: { textStyle: { color: '#6b7db3', fontSize: 10 }, top: '2%' },
+    grid: { left: '3%', right: '8%', bottom: '3%', top: '12%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3', fontSize: 10 }, splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', data: top15.map(d => d.name), axisLabel: { color: '#b8c5e8', fontSize: 10 }, inverse: true },
+    series: [
+      { name: '简历数', type: 'bar', data: top15.map(d => d.resumes), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#7b61ff' }, { offset: 1, color: '#4a3ab8' }]), borderRadius: [0, 4, 4, 0] }, label: { show: true, position: 'right', color: '#7b61ff', fontSize: 9, formatter: '{c}' } },
+      { name: 'Offer', type: 'bar', data: top15.map(d => d.offers), itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#00e676' }, { offset: 1, color: '#00a854' }]), borderRadius: [0, 4, 4, 0] }, label: { show: true, position: 'right', color: '#00e676', fontSize: 9, formatter: '{c}' } }
+    ]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 校园大使图表
+// ============================================================
+function renderAmbassadorChart() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartAmbassador')) || echarts.init(document.getElementById('chartAmbassador'));
+  const sorted = [...DATA.ambassadorRank].sort((a, b) => ambassadorChartSort === 'offers' ? b.offers - a.offers : b.resumes - a.resumes).slice(0, 20);
+  const metric = ambassadorChartSort === 'offers' ? 'offers' : 'resumes';
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+      const d = sorted[p[0].dataIndex];
+      return (d.name || '') + '<br/>院校: ' + (d.school || '-') + '<br/>简历: <b>' + (d.resumes || 0).toLocaleString() + '</b><br/>Offer: <b>' + (d.offers || 0) + '</b>';
+    }},
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3' }, splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', data: sorted.map(d => (d.name || '') + (d.isElite ? ' ' : '')), axisLabel: { color: '#b8c5e8', fontSize: 11 }, inverse: true },
+    series: [{
+      type: 'bar', data: sorted.map(d => d[metric] || 0),
+      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#f0a500' }, { offset: 1, color: '#ff6b00' }]), borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: '#f0a500', fontSize: 10, formatter: '{c}' }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+function switchAmbassadorChart(mode) {
+  ambassadorChartSort = mode;
+  document.getElementById('btnResumes').classList.toggle('active', mode === 'resumes');
+  document.getElementById('btnOffers').classList.toggle('active', mode === 'offers');
+  renderAmbassadorChart();
+}
+
+// ============================================================
+// 校园大使表格
+// ============================================================
+function renderAmbassadorTable() {
+  const sorted = [...DATA.ambassadorRank].sort((a, b) => b.resumes - a.resumes);
+  const container = document.getElementById('tableAmbassador');
+  container.innerHTML = `<table><thead><tr><th>#</th><th>大使</th><th>院校</th><th>简历</th><th>Offer</th></tr></thead><tbody>` +
+    sorted.map(a => {
+      const badge = a.rank <= 3 ? 'rank-' + a.rank : 'rank-other';
+      return `<tr>
+        <td><span class="rank-badge ${badge}">${a.rank}</span></td>
+        <td>${a.name || '-'}${a.isElite ? '<span class="elite-tag">精英</span>' : ''}</td>
+        <td style="color:#6b7db3;font-size:12px;">${a.school || '-'}</td>
+        <td>${(a.resumes || 0).toLocaleString()}</td>
+        <td>${a.offers || 0}${a.offers > 0 ? '<span class="offer-tag">✓</span>' : ''}</td>
+      </tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+// ============================================================
+// 青云岗位表格
+// ============================================================
+function renderQyjobsTable() {
+  const jobs = (DATA.qingyunJobs || []).slice(0, 10);
+  const container = document.getElementById('qyJobsTable');
+  container.innerHTML = `<table><thead><tr><th>#</th><th>投递岗位类</th><th>人数</th></tr></thead><tbody>` +
+    jobs.map((j, i) => `<tr><td><span class="rank-badge rank-${i+1<=3?i+1:'other'}">${i+1}</span></td><td>${j.name}</td><td>${j.value}</td></tr>`).join('') +
+    '</tbody></table>';
+}
+
+// ============================================================
+// 院校图表
+// ============================================================
+function renderSchoolChart() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartSchool')) || echarts.init(document.getElementById('chartSchool'));
+  const top20 = (DATA.schoolRank || []).slice(0, 20);
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+      const d = top20[p[0].dataIndex];
+      return (d.name || '') + '<br/>简历 <b>' + (d.resumes || 0).toLocaleString() + '</b><br/>Offer <b>' + (d.offers || 0) + '</b>';
+    }},
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3' }, splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', data: top20.map(d => d.name || ''), axisLabel: { color: '#b8c5e8', fontSize: 11 }, inverse: true },
+    series: [{
+      type: 'bar', data: top20.map(d => d.resumes || 0),
+      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#ff6b8a' }, { offset: 1, color: '#ff9f7f' }]), borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: '#ff6b8a', fontSize: 10, formatter: '{c}' }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 院校表格
+// ============================================================
+function renderSchoolTable() {
+  const top50 = (DATA.schoolRank || []).slice(0, 50);
+  const container = document.getElementById('tableSchool');
+  container.innerHTML = `<table><thead><tr><th>#</th><th>院校</th><th>简历</th><th>Offer</th><th>区域</th></tr></thead><tbody>` +
+    top50.map(s => `<tr>
+      <td><span class="rank-badge ${s.rank<=3?'rank-'+s.rank:'rank-other'}">${s.rank}</span></td>
+      <td>${s.name || '-'}</td>
+      <td>${(s.resumes||0).toLocaleString()}</td>
+      <td>${s.offers||0}${s.offers>0?'<span class="offer-tag">✓</span>':''}</td>
+      <td style="color:#6b7db3;font-size:12px;">${s.region||'-'}</td>
+    </tr>`).join('') + '</tbody></table>';
+}
+
+// ============================================================
+// 自动初始化：检查是否已有数据
+// ============================================================
+(async function init() {
+  try {
+    const res = await fetch('/api/data');
+    const json = await res.json();
+    console.log('[init] /api/data response keys:', Object.keys(json), 'loaded:', json.loaded);
+    if (json.loaded && json.summary) {
+      DATA = json;
+      console.log('[init] DATA loaded, summary totalResumes:', DATA.summary?.totalResumes);
+      overlay.style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      renderAll();
+      return;
+    }
+  } catch(e) { console.error('[init] error:', e); }
+  // 无数据，显示引导页
+  overlay.style.display = 'flex';
+  document.getElementById('content').style.display = 'none';
+})();
+</script>
+</body>
+</html>
