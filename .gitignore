@@ -1,0 +1,58 @@
+# ───────── Python ─────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.env
+.env.*
+*.egg-info/
+.pytest_cache/
+
+# ───────── 业务数据 / 敏感（绝对不上 GitHub）─────────
+# 全量简历/Offer 明细，所有 xlsx 一律忽略
+*.xlsx
+*.xls
+*.xlsm
+
+# 含 UHR/区域/学校映射、含真实姓名的中间表
+*.csv
+
+# pickle 缓存（数据快照、上周基线，含明细）
+*.pkl
+current_data.pkl
+last_year_data.pkl
+snapshots/
+
+# 业务文档里包含内部域名 / 后台地址，不公开
+权限配置说明.md
+
+# ───────── 运行日志 ─────────
+*.log
+*.out.log
+*.err.log
+server.log
+server.err.log
+server.out.log
+_srv.log
+_srv.err.log
+nohup.out
+
+# ───────── 处理产物 ─────────
+processed/
+dashboard_data.json
+
+# ───────── 编辑器 / 系统 ─────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ───────── 临时文件 ─────────
+*.bak
+*.bak.*
+~$*

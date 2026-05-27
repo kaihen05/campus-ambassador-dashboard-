@@ -1,0 +1,2192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>腾讯校园大使内推数据看板</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; background: #0a0e27; color: #e0e6f0; padding: 20px; min-height: 100vh; }
+
+/* ---- 顶部栏 ---- */
+.header {
+  background: linear-gradient(135deg, #0d1333, #1a1f4e);
+  border-bottom: 2px solid #2a3a7d;
+  padding: 14px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 12px 12px 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header h1 { font-size: 22px; background: linear-gradient(90deg, #00d4ff, #7b61ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.header-right { display: flex; align-items: center; gap: 14px; }
+
+/* ---- 上传按钮 ---- */
+.upload-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, #7b61ff, #00d4ff);
+  color: #fff; border: none; border-radius: 24px;
+  padding: 8px 18px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.upload-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(123,97,255,.4); }
+.upload-btn:active { transform: translateY(0); }
+.upload-btn svg { width: 16px; height: 16px; }
+.upload-input { display: none; }
+
+/* ---- 成功提示 ---- */
+.toast {
+  position: fixed; top: 80px; right: 30px; z-index: 999;
+  background: linear-gradient(135deg, #1a3a2a, #0d2a1a);
+  border: 1px solid #00e676; border-radius: 10px;
+  padding: 12px 20px; color: #00e676; font-size: 13px;
+  display: none; animation: slideIn .3s ease;
+}
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+/* ---- 上传遮罩 ---- */
+#uploadOverlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(10,14,39,.92); display: flex;
+  align-items: center; justify-content: center; flex-direction: column; gap: 20px;
+}
+.upload-hero { text-align: center; }
+.upload-hero h2 { font-size: 28px; color: #b8c5e8; margin-bottom: 10px; }
+.upload-hero p { color: #4a5a9d; font-size: 14px; line-height: 1.8; }
+.upload-dropzone {
+  border: 2px dashed #2a3a7d; border-radius: 20px;
+  padding: 50px 60px; text-align: center; cursor: pointer;
+  transition: all .2s; background: #111833;
+}
+.upload-dropzone:hover, .upload-dropzone.dragover {
+  border-color: #7b61ff; background: #1a2550;
+}
+.upload-dropzone svg { width: 60px; height: 60px; color: #4a5a9d; margin-bottom: 16px; }
+.upload-dropzone p { color: #6b7db3; font-size: 15px; }
+.upload-dropzone .hint { font-size: 12px; color: #3a4a7d; margin-top: 6px; }
+#uploadProgress { display: none; text-align: center; color: #00d4ff; font-size: 14px; }
+.spinner {
+  width: 40px; height: 40px; border: 3px solid #1e2d6d;
+  border-top-color: #00d4ff; border-radius: 50%;
+  animation: spin .8s linear infinite; margin: 0 auto 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- KPI卡片 ---- */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
+.kpi-card {
+  background: linear-gradient(135deg, #111833, #1a2550);
+  border: 1px solid #2a3a7d; border-radius: 12px;
+  padding: 18px 18px 16px; transition: all .2s;
+  position: relative; overflow: hidden;
+}
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+.kpi-card .label { font-size: 12px; color: #6b7db3; margin-bottom: 10px; text-align: center; letter-spacing: .5px; }
+.kpi-card .sub { font-size: 11px; color: #4a5a9d; margin-top: 6px; text-align: center; }
+/* 今年 vs 去年 双列对比 */
+.kpi-vs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: end; margin-bottom: 4px; }
+.kpi-side { text-align: center; }
+.kpi-side .tag { font-size: 10px; letter-spacing: 1px; padding: 1px 8px; border-radius: 8px; display: inline-block; margin-bottom: 4px; }
+.kpi-side.curr .tag { background: rgba(0,212,255,.15); color: #00d4ff; }
+.kpi-side.prev .tag { background: rgba(123,97,255,.12); color: #8a76ff; }
+.kpi-side .num { font-size: 22px; font-weight: 800; line-height: 1.05; }
+.kpi-side.curr .num { background: linear-gradient(90deg, #00d4ff, #7b61ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.kpi-side.prev .num { color: #6b7db3; font-size: 18px; }
+.kpi-vs-arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 2px; }
+.kpi-vs-arrow .delta { font-size: 13px; font-weight: 700; line-height: 1; padding: 4px 7px; border-radius: 8px; }
+.delta-up { background: rgba(0,230,118,.12); color: #00e676; }
+.delta-down { background: rgba(255,107,138,.12); color: #ff6b8a; }
+.delta-flat { background: rgba(107,125,179,.12); color: #b8c5e8; }
+.delta-new { background: rgba(240,165,0,.15); color: #f0a500; }
+/* 单柱版（无去年同比的卡片） */
+.kpi-card.single { text-align: center; padding-top: 22px; }
+.kpi-card.single .value { font-size: 30px; font-weight: 700; background: linear-gradient(90deg, #00d4ff, #7b61ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.yoy-up   { color: #00e676; font-weight: 600; }
+.yoy-down { color: #ff6b8a; font-weight: 600; }
+.yoy-flat { color: #6b7db3; font-weight: 600; }
+.yoy-new  { color: #f0a500; font-weight: 600; }
+
+/* ---- 两年对比专区 ---- */
+.compare-wrap { background: linear-gradient(135deg, #0f1530, #161e44); border: 1px solid #2a3a7d; border-radius: 14px; padding: 18px 20px 14px; margin-top: 14px; }
+.compare-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.compare-head .tt { font-size: 16px; color: #e8ecf8; font-weight: 700; }
+.compare-head .desc { font-size: 12px; color: #6b7db3; }
+.compare-legend { display: flex; gap: 14px; margin-left: auto; font-size: 11px; }
+.compare-legend .lg { display: flex; align-items: center; gap: 4px; color: #b8c5e8; }
+.compare-legend .lg::before { content: ''; width: 12px; height: 12px; border-radius: 3px; }
+.compare-legend .lg.curr::before { background: linear-gradient(135deg, #00d4ff, #7b61ff); }
+.compare-legend .lg.prev::before { background: linear-gradient(135deg, #6b7db3, #4a5a9d); }
+
+/* ---- 通用 ---- */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.chart-card { background: #111833; border: 1px solid #1e2d6d; border-radius: 12px; padding: 16px; }
+.chart-title { font-size: 14px; color: #b8c5e8; margin-bottom: 12px; border-left: 3px solid #7b61ff; padding-left: 10px; }
+.chart { height: 300px; }
+.section-title { font-size: 16px; color: #b8c5e8; margin: 24px 0 12px; border-left: 3px solid #00d4ff; padding-left: 10px; }
+.toggle-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.toggle-btn { padding: 4px 14px; border-radius: 20px; border: 1px solid #2a3a7d; background: transparent; color: #6b7db3; cursor: pointer; font-size: 12px; transition: all .15s; }
+.toggle-btn.active { background: #7b61ff; color: #fff; border-color: #7b61ff; }
+
+/* ---- 区域筛选 pills（UHR 视图专用） ---- */
+.region-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; padding: 10px 14px; background: rgba(123,97,255,0.06); border: 1px solid #1a2255; border-radius: 10px; }
+.region-filter-label { color: #8a96c4; font-size: 12px; margin-right: 4px; }
+.region-pill { padding: 4px 12px; border-radius: 16px; border: 1px solid #2a3a7d; background: transparent; color: #b8c5e8; cursor: pointer; font-size: 12px; transition: all .15s; user-select: none; }
+.region-pill:hover { border-color: #7b61ff; color: #fff; }
+.region-pill.active { background: linear-gradient(90deg,#7b61ff,#00d4ff); color: #fff; border-color: transparent; box-shadow: 0 2px 8px rgba(123,97,255,.35); }
+.region-pill.disabled { opacity: .35; cursor: not-allowed; }
+
+/* ---- 表格 ---- */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #1a2550; color: #6b7db3; padding: 8px 10px; text-align: left; border-bottom: 1px solid #1e2d6d; position: sticky; top: 0; }
+td { padding: 8px 10px; border-bottom: 1px solid #1a2040; }
+tr:hover { background: #1a2550; }
+.table-wrap { max-height: 300px; overflow-y: auto; border-radius: 8px; }
+.rank-badge { display: inline-block; width: 20px; height: 20px; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; }
+.rank-1 { background: #ffd700; color: #000; }
+.rank-2 { background: #c0c0c0; color: #000; }
+.rank-3 { background: #cd7f32; color: #fff; }
+.rank-other { background: #2a3a7d; color: #6b7db3; }
+.elite-tag { background: linear-gradient(135deg, #f0a500, #ff6b00); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-left: 4px; }
+.offer-tag { background: #00e676; color: #000; font-size: 11px; padding: 1px 6px; border-radius: 8px; }
+
+/* ---- 三层漏斗 ---- */
+.funnel-stages { display: flex; align-items: stretch; gap: 0; margin-bottom: 20px; }
+.funnel-stage { flex: 1; position: relative; background: linear-gradient(135deg, #111833 0%, #1a2550 100%); border: 1px solid #2a3a7d; border-radius: 16px; padding: 24px 20px; text-align: center; transition: all .3s ease; overflow: hidden; }
+.funnel-stage:hover { transform: translateY(-4px); box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+.funnel-stage::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--stage-color); }
+.funnel-stage .stage-layer { font-size: 10px; letter-spacing: 2px; color: #4a5a9d; text-transform: uppercase; margin-bottom: 10px; }
+.funnel-stage .stage-name { font-size: 14px; color: #b8c5e8; margin-bottom: 12px; line-height: 1.4; }
+.funnel-stage .stage-value { font-size: 36px; font-weight: 800; color: var(--stage-color); line-height: 1; margin-bottom: 8px; }
+.funnel-stage .stage-rate { font-size: 12px; color: #6b7db3; }
+.funnel-stage .stage-detail { font-size: 11px; color: #4a5a9d; margin-top: 10px; line-height: 1.6; text-align: left; padding: 8px 10px; background: #0a0e27; border-radius: 8px; }
+.funnel-arrow { display: flex; align-items: center; justify-content: center; width: 60px; flex-shrink: 0; }
+.funnel-arrow-inner { text-align: center; }
+.funnel-arrow .arrow-num { font-size: 18px; font-weight: 700; color: #f0a500; }
+.funnel-arrow .arrow-pct { font-size: 10px; color: #6b7db3; }
+.funnel-arrow svg { color: #2a3a7d; margin: 4px 0; }
+
+/* ---- 主内容区 ---- */
+#content { display: none; }
+
+/* ---- 7垂类卡片 ---- */
+.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.cat-card {
+  background: linear-gradient(135deg, #111833 0%, #1a2040 100%);
+  border: 1px solid #1e2d6d;
+  border-radius: 14px;
+  padding: 20px;
+  transition: all .3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.cat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #7b61ff, #00d4ff);
+  border-radius: 14px 14px 0 0;
+}
+.cat-card:hover {
+  border-color: #3a4a8d;
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 212, 255, 0.08);
+}
+.cat-card .cat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.cat-card .cat-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e8ecf8;
+  letter-spacing: 0.5px;
+}
+.cat-card .cat-badge {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(123, 97, 255, 0.15);
+  color: #a48eff;
+  font-weight: 600;
+}
+.cat-card .cat-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.cat-card .cat-metric {
+  text-align: center;
+}
+.cat-card .cat-metric-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: #00d4ff;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.cat-card .cat-metric-label {
+  font-size: 11px;
+  color: #6b7db3;
+  font-weight: 500;
+}
+.cat-card .cat-offer-value {
+  color: #00e676;
+}
+.cat-bar-bg {
+  background: rgba(26, 32, 64, 0.8);
+  border-radius: 8px;
+  height: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.cat-bar-fill {
+  height: 8px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #7b61ff 0%, #00d4ff 50%, #00e676 100%);
+  transition: width .8s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+.cat-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 20px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2));
+  border-radius: 0 8px 8px 0;
+}
+.cat-card .cat-rate {
+  font-size: 11px;
+  color: #6b7db3;
+  text-align: right;
+  font-weight: 500;
+}
+.cat-card .cat-rate span {
+  color: #f0a500;
+  font-weight: 700;
+}
+
+/* ---- 青云模块 ---- */
+.qingyun-hero { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; margin-bottom: 16px; }
+.qy-stat-card { background: linear-gradient(135deg, #111833, #1a2550); border: 1px solid #2a3a7d; border-radius: 12px; padding: 18px 20px; text-align: center; }
+.qy-stat-card .qyv { font-size: 30px; font-weight: 800; color: #00d4ff; }
+.qy-stat-card .qyl { font-size: 11px; color: #6b7db3; margin-top: 4px; }
+.qy-filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.qy-filter-item { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+.qy-filter-item label { font-size: 11px; color: #6b7db3; }
+.qy-filter-item select {
+  background: #0a0e27; color: #e7eaff; border: 1px solid #2a3a7d;
+  border-radius: 6px; padding: 6px 8px; font-size: 13px; outline: none;
+  min-width: 180px; max-width: 280px;
+}
+.qy-filter-item select:focus { border-color: #7b61ff; }
+.qy-offer-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; margin-left: 4px; }
+.qy-offer-grad { background: rgba(255,193,7,.15); color: #ffc107; border: 1px solid #b48400; }
+.qy-offer-intern { background: rgba(0,212,255,.15); color: #00d4ff; border: 1px solid #007799; }
+.qy-top-tip { color:#6b7db3; font-size:12px; margin: -4px 0 10px 2px; }
+.qy-top-table { max-height: 380px; }
+.qy-top-table table { font-size: 12.5px; }
+.qy-top-table th, .qy-top-table td { padding: 6px 8px; }
+.qy-split { display: inline-flex; gap: 4px; align-items: center; }
+.qy-split .qs-pill {
+  display: inline-block; min-width: 22px; padding: 1px 7px; border-radius: 9px;
+  font-size: 11px; text-align: center; font-weight: 600;
+}
+.qy-split .qs-grad { background: rgba(255,193,7,.18); color: #ffc107; border: 1px solid #b48400; }
+.qy-split .qs-intern { background: rgba(0,212,255,.18); color: #00d4ff; border: 1px solid #007799; }
+.qy-split .qs-zero { opacity: .35; }
+</style>
+</head>
+<body>
+
+<!-- ======================== 顶部栏 ======================== -->
+<div class="header">
+  <h1>📊 腾讯校园大使内推数据看板</h1>
+  <div class="header-right">
+    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      导入 Excel
+    </button>
+    <input type="file" id="fileInput" class="upload-input" accept=".xlsx,.xls">
+  </div>
+</div>
+
+<!-- ======================== 上传遮罩 ======================== -->
+<div id="uploadOverlay">
+  <div class="upload-hero">
+    <h2>欢迎使用校园大使数据看板</h2>
+    <p>上传内推数据 Excel 文件，即可自动生成完整看板</p>
+  </div>
+  <div class="upload-dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3-3 3 3"/></svg>
+    <p id="dropText">点击选择 Excel 文件 或 拖拽文件到此处</p>
+    <div class="hint">支持 .xlsx / .xls，文件大小勿超过 100MB</div>
+  </div>
+  <div id="uploadProgress">
+    <div class="spinner"></div>
+    <div>正在解析 Excel，请稍候...</div>
+  </div>
+  <div id="uploadError" style="display:none; color:#ff6b8a; font-size:13px; text-align:center;"></div>
+</div>
+
+<!-- ======================== 提示 ======================== -->
+<div class="toast" id="toast"></div>
+
+<!-- ======================== 主内容（上传后显示）==================== -->
+<div id="content">
+
+  <!-- KPI 8宫格 -->
+  <div class="kpi-grid" id="kpiRow"></div>
+
+  <!-- ============ 📈 周对比（本周 vs 上周）============ -->
+  <div class="compare-wrap" id="weekCompareWrap" style="display:none;">
+    <div class="compare-head">
+      <div class="tt">📈 本周新增 — vs 上周基线</div>
+      <div class="desc" id="weekCompareDesc">基线: —</div>
+      <span style="flex:1;"></span>
+      <span style="font-size:11px;color:#6b7db3;">每次上传 Excel 自动建立"本周基线"，下次上传后即可看到周增量</span>
+    </div>
+    <div id="weekCompareEmpty" style="display:none;color:#b8c5e8;font-size:13px;padding:6px 4px;"></div>
+    <div id="weekCompareKPI" class="kpi-grid" style="grid-template-columns:repeat(5,1fr);gap:10px;"></div>
+    <div id="weekCompareElites" style="margin-top:14px;display:none;">
+      <div style="font-size:13px;color:#e8ecf8;font-weight:700;margin-bottom:8px;">🆕 新晋精英大使（本周新跨过 ≥200 简历线）</div>
+      <div id="weekCompareEliteList" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+    </div>
+    <div id="weekCompareLost" style="margin-top:10px;display:none;">
+      <div style="font-size:12px;color:#ff6b8a;font-weight:600;margin-bottom:6px;">⚠️ 本周从精英降出（简历回落到 &lt;200）</div>
+      <div id="weekCompareLostList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+    <div id="weekCompareGrowth" style="margin-top:14px;display:none;">
+      <div style="font-size:13px;color:#e8ecf8;font-weight:700;margin-bottom:6px;">🚀 本周简历增长 TOP15 大使</div>
+      <div class="table-wrap" style="max-height:260px;">
+        <table id="weekCompareGrowthTable" style="width:100%;font-size:12px;border-collapse:collapse;">
+          <thead>
+            <tr style="color:#6b7db3;border-bottom:1px solid #2a3a7d;">
+              <th style="text-align:left;padding:6px 8px;">大使</th>
+              <th style="text-align:right;padding:6px 8px;">本周新增简历</th>
+              <th style="text-align:right;padding:6px 8px;">上周</th>
+              <th style="text-align:right;padding:6px 8px;">本周</th>
+              <th style="text-align:right;padding:6px 8px;">本周新增 Offer</th>
+              <th style="text-align:center;padding:6px 8px;">精英身份</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- ============ 周对比 end ============ -->
+
+  <!-- 简历流程分布 -->
+  <div class="section-title">📊 简历流程分布</div>
+  <div class="funnel-stages" id="funnelStages">
+    <div class="funnel-stage" style="--stage-color:#00d4ff">
+      <div class="stage-layer">Layer 1</div>
+      <div class="stage-name">入库简历数</div>
+      <div class="stage-value" id="stage1Val">—</div>
+      <div class="stage-rate">占总量 100%</div>
+    </div>
+    <div class="funnel-arrow">
+      <div class="funnel-arrow-inner">
+        <div class="arrow-num" id="arrow1Num">—</div>
+        <div class="arrow-pct">→ 面试发起率</div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+    <div class="funnel-stage" style="--stage-color:#7b61ff">
+      <div class="stage-layer">Layer 2</div>
+      <div class="stage-name">发起面试数</div>
+      <div class="stage-value" id="stage2Val">—</div>
+      <div class="stage-rate" id="stage2Rate">—</div>
+    </div>
+    <div class="funnel-arrow">
+      <div class="funnel-arrow-inner">
+        <div class="arrow-num" id="arrow2Num">—</div>
+        <div class="arrow-pct">→ 录用流程率</div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+    <div class="funnel-stage" style="--stage-color:#00e676">
+      <div class="stage-layer">Layer 3</div>
+      <div class="stage-name">录用流程中</div>
+      <div class="stage-value" id="stage3Val">—</div>
+      <div class="stage-rate" id="stage3Rate">—</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="chart-card"><div class="chart-title">简历流程漏斗</div><div id="chartFunnel" class="chart" style="height:320px;"></div></div>
+    <div class="chart-card"><div class="chart-title">各流程节点明细</div><div id="chartFlowPie" class="chart" style="height:320px;"></div></div>
+  </div>
+
+  <!-- BG + 青云 -->
+  <div class="section-title">🏢 各BG / 青云计划分布</div>
+  <div class="grid-2">
+    <div class="chart-card"><div class="chart-title">各BG简历推荐数量</div><div id="chartBG" class="chart"></div></div>
+    <div class="chart-card"><div class="chart-title">青云计划分布</div><div id="chartQingyun" class="chart"></div></div>
+  </div>
+
+  <!-- 青云 TOP 岗位 -->
+  <div class="section-title">🚀 青云计划 — TOP10 投递岗位类</div>
+  <div class="grid-2">
+    <div class="chart-card"><div id="chartQyjobs" class="chart"></div></div>
+    <div class="chart-card" id="qyJobsTableCard">
+      <div class="chart-title">青云岗位明细</div>
+      <div id="qyJobsTable" class="table-wrap" style="max-height:280px;"></div>
+    </div>
+  </div>
+
+  <!-- 青云 Offer 排行（大使 / UHR / 课题），含实习/毕业拆分 -->
+  <div class="section-title">🏆 青云 Offer 排行 — 拿到最多 Offer 的 大使 / UHR / 课题</div>
+  <div class="qy-top-tip">
+    每张卡按 <b style="color:#00d4ff;">Offer 总数</b> 倒序，并拆分
+    <span class="qy-offer-tag qy-offer-grad">毕业生已录用</span>
+    <span class="qy-offer-tag qy-offer-intern">实习已录用</span>
+    两个口径
+  </div>
+  <div class="grid-3">
+    <div class="chart-card">
+      <div class="chart-title">🥇 校园大使 Offer 榜</div>
+      <div id="qyTopAmbassador" class="table-wrap qy-top-table"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🏢 UHR Offer 榜</div>
+      <div id="qyTopUhr" class="table-wrap qy-top-table"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">📚 课题（投递岗位类）Offer 榜</div>
+      <div id="qyTopJobclass" class="table-wrap qy-top-table"></div>
+    </div>
+  </div>
+
+  <!-- 青云 Offer 明细 -->
+  <div class="section-title">🌟 青云 Offer 明细（含筛选）</div>
+  <div class="chart-card">
+    <div class="qy-filter-bar">
+      <div class="qy-filter-item">
+        <label>UHR</label>
+        <select id="qyFilterUhr" onchange="renderQyOfferDetails()">
+          <option value="all">全部</option>
+        </select>
+      </div>
+      <div class="qy-filter-item">
+        <label>校园大使</label>
+        <select id="qyFilterAmb" onchange="renderQyOfferDetails()">
+          <option value="all">全部</option>
+        </select>
+      </div>
+      <div class="qy-filter-item">
+        <label>最高学历学校</label>
+        <select id="qyFilterSchool" onchange="renderQyOfferDetails()">
+          <option value="all">全部</option>
+        </select>
+      </div>
+      <button class="toggle-btn" style="height:32px;" onclick="resetQyOfferFilters()">重置</button>
+      <span style="flex:1;"></span>
+      <span id="qyOfferCountInfo" style="color:#6b7db3;font-size:12px;"></span>
+    </div>
+    <div id="qyOfferTable" class="table-wrap" style="max-height:520px;margin-top:12px;"></div>
+  </div>
+
+  <!-- 7个垂类（卡片 + 饼图，紧挨在一起） -->
+  <div class="section-title">📂 7个垂类内推详情</div>
+  <div class="cat-grid" id="catCards"></div>
+  <div class="chart-card" style="margin-top:14px;">
+    <div class="chart-title">7个垂类分布</div>
+    <div id="chartCategory" class="chart" style="height:300px;"></div>
+  </div>
+
+  <!-- 区域 / UHR（今年） -->
+  <div class="section-title">📍 今年｜区域 & UHR 视图</div>
+  <!-- 区域筛选条：仅作用于右侧两张 UHR 图 -->
+  <div class="region-filter-row" id="uhrRegionFilter">
+    <span class="region-filter-label">UHR 视图筛选区域：</span>
+    <!-- 由 JS 动态填充 pills -->
+  </div>
+  <div class="grid-3">
+    <div class="chart-card"><div class="chart-title">By 区域 — 今年</div><div id="chartRegion" class="chart"></div></div>
+    <div class="chart-card"><div class="chart-title" id="chartUHRTitle">By UHR — 今年（TOP15 by 内推数）</div><div id="chartUHR" class="chart"></div></div>
+    <div class="chart-card"><div class="chart-title" id="chartUHRRateRankTitle">🏆 UHR Offer 率排行（TOP15 by 转化率）</div><div id="chartUHRRateRank" class="chart"></div></div>
+  </div>
+
+  <!-- 校园大使 -->
+  <div class="section-title">🎖️ 校园大使排名</div>
+  <div class="grid-2">
+    <div class="chart-card">
+      <div class="toggle-row">
+        <button class="toggle-btn active" id="btnResumes" onclick="switchAmbassadorChart('resumes')">By 内推数</button>
+        <button class="toggle-btn" id="btnOffers" onclick="switchAmbassadorChart('offers')">By Offer数</button>
+      </div>
+      <div id="chartAmbassador" class="chart"></div>
+    </div>
+    <div class="chart-card">
+      <div style="font-size:12px;color:#6b7db3;margin-bottom:8px;">完整排名（可滚动）</div>
+      <div id="tableAmbassador" class="table-wrap" style="max-height:300px;"></div>
+    </div>
+  </div>
+
+  <!-- 院校 -->
+  <div class="section-title">🏫 院校排名（全部）</div>
+  <div class="grid-2">
+    <div class="chart-card">
+      <div class="toggle-row" style="margin-bottom:8px;flex-wrap:wrap;gap:6px;align-items:center;">
+        <span style="color:#6b7db3;font-size:12px;margin-right:4px;">区域筛选：</span>
+        <div id="schoolRegionTabs" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        <span style="flex:1;"></span>
+        <span id="schoolCountInfo" style="color:#6b7db3;font-size:11px;"></span>
+      </div>
+      <div id="chartSchool" class="chart" style="height:560px;"></div>
+    </div>
+    <div class="chart-card">
+      <div id="tableSchool" class="table-wrap" style="max-height:600px;"></div>
+    </div>
+  </div>
+
+  <!-- ============== 📅 两年对比专区（重磅）============== -->
+  <div class="section-title">📅 两年对比 — 今年 vs 去年</div>
+
+  <!-- 核心 KPI 双列对比（今年｜Δ｜去年）—— 从顶部挪下来 -->
+  <div class="compare-wrap">
+    <div class="compare-head">
+      <div class="tt">📊 KPI 总览 — 今年 vs 去年</div>
+      <div class="desc">中间彩色徽章显示同比 ±%（▲绿 / ▼红 / 新黄 / —灰）</div>
+    </div>
+    <div id="kpiCompareRow" class="kpi-grid" style="grid-template-columns:repeat(3,1fr);"></div>
+  </div>
+
+  <!-- 去年 By 区域 / By UHR —— 与上方今年视图对照 -->
+  <div class="compare-wrap">
+    <div class="compare-head">
+      <div class="tt">📍 去年｜区域 & UHR 视图</div>
+      <div class="desc">与页面上方"今年"视图一一对应，方便上下对照</div>
+      <div class="compare-legend">
+        <span class="lg prev">去年</span>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="chart-card"><div class="chart-title">By 区域 — 去年</div><div id="chartRegionLY" class="chart"></div></div>
+      <div class="chart-card"><div class="chart-title">By UHR — 去年（TOP15 by 内推数）</div><div id="chartUHRLY" class="chart"></div></div>
+    </div>
+  </div>
+
+  <div class="compare-wrap">
+    <div class="compare-head">
+      <div class="tt">总览数据</div>
+      <div class="desc">三大核心指标的同期对比，柱状直接看同比 ±%</div>
+      <div class="compare-legend">
+        <span class="lg curr">今年</span>
+        <span class="lg prev">去年</span>
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="chart-card"><div class="chart-title">内推数（今年 vs 去年）</div><div id="chartCmpResumes" class="chart" style="height:300px;"></div></div>
+      <div class="chart-card"><div class="chart-title">Offer 数（今年 vs 去年）</div><div id="chartCmpOffers" class="chart" style="height:300px;"></div></div>
+      <div class="chart-card"><div class="chart-title">Offer 率（今年 vs 去年）</div><div id="chartCmpRate" class="chart" style="height:300px;"></div></div>
+    </div>
+  </div>
+
+  <div class="compare-wrap">
+    <div class="compare-head">
+      <div class="tt">院校 TOP15 内推数对比</div>
+      <div class="desc">对今年 TOP15 院校做两年对比，按今年内推数降序</div>
+      <div class="compare-legend">
+        <span class="lg curr">今年</span>
+        <span class="lg prev">去年</span>
+      </div>
+    </div>
+    <div class="chart-card" style="background: transparent; border: none; padding: 0;">
+      <div id="chartCmpSchool" class="chart" style="height:480px;"></div>
+    </div>
+  </div>
+
+  <!-- 🆕 UHR 全员两年对比 -->
+  <div class="compare-wrap">
+    <div class="compare-head">
+      <div class="tt">👥 UHR 全员 — 今年 vs 去年</div>
+      <div class="desc">每一位 UHR 的内推数 / Offer 数 双年对比；按今年内推数降序，去年新增的 UHR 排在最后</div>
+      <div class="compare-legend">
+        <span class="lg curr">今年</span>
+        <span class="lg prev">去年</span>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="chart-card" style="background: transparent; border: none; padding: 0;">
+        <div class="chart-title" style="padding: 8px 4px;">📥 内推数（今年 vs 去年）</div>
+        <div id="chartCmpUHRResumes" class="chart" style="height:560px;"></div>
+      </div>
+      <div class="chart-card" style="background: transparent; border: none; padding: 0;">
+        <div class="chart-title" style="padding: 8px 4px;">🎯 Offer 数（今年 vs 去年）</div>
+        <div id="chartCmpUHROffers" class="chart" style="height:560px;"></div>
+      </div>
+    </div>
+    <!-- UHR 全员 明细表（每位 UHR 一行）-->
+    <div style="margin-top:14px;">
+      <div class="chart-title" style="padding: 8px 4px;">📋 UHR 全员 明细（今年 / 去年 / 同比）</div>
+      <div class="table-wrap" style="max-height:520px;">
+        <table id="cmpUHRTable" style="width:100%;font-size:12px;border-collapse:collapse;">
+          <thead>
+            <tr style="color:#6b7db3;border-bottom:1px solid #2a3a7d;background:#0f1530;position:sticky;top:0;z-index:1;">
+              <th style="text-align:left;padding:8px;">UHR</th>
+              <th style="text-align:right;padding:8px;">今年简历</th>
+              <th style="text-align:right;padding:8px;">去年简历</th>
+              <th style="text-align:right;padding:8px;">简历同比</th>
+              <th style="text-align:right;padding:8px;">今年Offer</th>
+              <th style="text-align:right;padding:8px;">去年Offer</th>
+              <th style="text-align:right;padding:8px;">Offer同比</th>
+              <th style="text-align:right;padding:8px;">今年Offer率</th>
+              <th style="text-align:right;padding:8px;">去年Offer率</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- ============== /两年对比专区 ============== -->
+
+</div><!-- /content -->
+
+<script src="./echarts.min.js"></script>
+<script>
+// ============================================================
+// 全局状态
+// ============================================================
+let DATA = null;              // 当前看板数据
+let ambassadorChartSort = 'resumes'; // 当前大使图排序
+
+// ============================================================
+// 上传流程
+// ============================================================
+const fileInput = document.getElementById('fileInput');
+const overlay = document.getElementById('uploadOverlay');
+const progress = document.getElementById('uploadProgress');
+const dropzone = document.getElementById('dropzone');
+const dropText = document.getElementById('dropText');
+const uploadError = document.getElementById('uploadError');
+
+fileInput.addEventListener('change', handleFile);
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) { document.getElementById('fileInput').files = e.dataTransfer.files; handleFile({ target: { files: [f] } }); }
+});
+
+async function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  uploadError.style.display = 'none';
+  dropzone.style.display = 'none';
+  document.getElementById('uploadProgress').style.display = 'block';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || '上传失败');
+
+    DATA = json.data;
+    console.log('[handleFile] DATA keys:', Object.keys(DATA), 'totalResumes:', DATA.summary?.totalResumes);
+    overlay.style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    renderAll();
+
+    showToast('✅ ' + json.message);
+  } catch (err) {
+    uploadError.textContent = '❌ ' + err.message;
+    uploadError.style.display = 'block';
+    dropzone.style.display = 'block';
+    document.getElementById('uploadProgress').style.display = 'none';
+  }
+  fileInput.value = '';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 4000);
+}
+
+// ============================================================
+// 渲染入口
+// ============================================================
+function renderAll() {
+  console.log('[renderAll] DATA:', JSON.stringify(Object.keys(DATA || {})));
+  try { renderKPI(); console.log('[renderAll] KPI ok'); } catch(e) { console.error('[renderAll] KPI error:', e); }
+  try { renderWeekCompare(); } catch(e) { console.error('[renderAll] WeekCompare error:', e); }
+  try { renderFunnelStages(); console.log('[renderAll] FunnelStages ok'); } catch(e) { console.error('[renderAll] FunnelStages error:', e); }
+  try { renderFunnelChart(); console.log('[renderAll] FunnelChart ok'); } catch(e) { console.error('[renderAll] FunnelChart error:', e); }
+  try { renderFlowPie(); console.log('[renderAll] FlowPie ok'); } catch(e) { console.error('[renderAll] FlowPie error:', e); }
+  try { renderBG(); console.log('[renderAll] BG ok'); } catch(e) { console.error('[renderAll] BG error:', e); }
+  try { renderQingyun(); console.log('[renderAll] Qingyun ok'); } catch(e) { console.error('[renderAll] Qingyun error:', e); }
+  try { renderQyjobs(); console.log('[renderAll] Qyjobs ok'); } catch(e) { console.error('[renderAll] Qyjobs error:', e); }
+  try { renderQyjobsTable(); console.log('[renderAll] QyjobsTable ok'); } catch(e) { console.error('[renderAll] QyjobsTable error:', e); }
+  try { renderQyTopRanks(); console.log('[renderAll] QyTopRanks ok'); } catch(e) { console.error('[renderAll] QyTopRanks error:', e); }
+  try { renderQyOffer(); console.log('[renderAll] QyOffer ok'); } catch(e) { console.error('[renderAll] QyOffer error:', e); }
+  try { renderCatCards(); console.log('[renderAll] CatCards ok'); } catch(e) { console.error('[renderAll] CatCards error:', e); }
+  try { renderCategory(); console.log('[renderAll] Category ok'); } catch(e) { console.error('[renderAll] Category error:', e); }
+  try { renderRegion(); console.log('[renderAll] Region ok'); } catch(e) { console.error('[renderAll] Region error:', e); }
+  try { buildUHRRegionFilter(); console.log('[renderAll] UHRRegionFilter ok'); } catch(e) { console.error('[renderAll] UHRRegionFilter error:', e); }
+  try { renderUHR(); console.log('[renderAll] UHR ok'); } catch(e) { console.error('[renderAll] UHR error:', e); }
+  try { renderUHRRateRank(); console.log('[renderAll] UHRRateRank ok'); } catch(e) { console.error('[renderAll] UHRRateRank error:', e); }
+  try { renderRegionLastYear(); console.log('[renderAll] RegionLY ok'); } catch(e) { console.error('[renderAll] RegionLY error:', e); }
+  try { renderUHRLastYear(); console.log('[renderAll] UHRLY ok'); } catch(e) { console.error('[renderAll] UHRLY error:', e); }
+  try { renderAmbassadorChart(); console.log('[renderAll] AmbassadorChart ok'); } catch(e) { console.error('[renderAll] AmbassadorChart error:', e); }
+  try { renderAmbassadorTable(); console.log('[renderAll] AmbassadorTable ok'); } catch(e) { console.error('[renderAll] AmbassadorTable error:', e); }
+  try { renderSchoolChart(); console.log('[renderAll] SchoolChart ok'); } catch(e) { console.error('[renderAll] SchoolChart error:', e); }
+  try { renderSchoolTable(); console.log('[renderAll] SchoolTable ok'); } catch(e) { console.error('[renderAll] SchoolTable error:', e); }
+  try { renderCmpResumes(); console.log('[renderAll] CmpResumes ok'); } catch(e) { console.error('[renderAll] CmpResumes error:', e); }
+  try { renderCmpOffers(); console.log('[renderAll] CmpOffers ok'); } catch(e) { console.error('[renderAll] CmpOffers error:', e); }
+  try { renderCmpRate(); console.log('[renderAll] CmpRate ok'); } catch(e) { console.error('[renderAll] CmpRate error:', e); }
+  try { renderCmpSchool(); console.log('[renderAll] CmpSchool ok'); } catch(e) { console.error('[renderAll] CmpSchool error:', e); }
+  try { renderCmpUHR(); console.log('[renderAll] CmpUHR ok'); } catch(e) { console.error('[renderAll] CmpUHR error:', e); }
+  console.log('[renderAll] Done');
+}
+
+// ============================================================
+// KPI
+// ============================================================
+// ---- 去年同期对比 工具函数 ----
+function buildLastYearIndex() {
+  // 把 lastYear 各排名表转成 name -> {resumes, offers} 的 map，便于按 name 匹配
+  const ly = DATA.lastYear;
+  if (!ly) return null;
+  const idx = (rows) => {
+    const m = {};
+    (rows || []).forEach(r => { m[String(r.name).trim()] = r; });
+    return m;
+  };
+  return {
+    summary: ly.summary || null,
+    region: idx(ly.regionRank),
+    uhr: idx(ly.uhrRank),
+    ambassador: idx(ly.ambassadorRank),
+    school: idx(ly.schoolRank),
+    // 原始排名数组（供"去年"图直接遍历）
+    regionRank: ly.regionRank || [],
+    uhrRank: ly.uhrRank || [],
+    ambassadorRank: ly.ambassadorRank || [],
+    schoolRank: ly.schoolRank || [],
+  };
+}
+function yoyText(curr, prev) {
+  // 返回 {html, cls}
+  const c = Number(curr) || 0;
+  if (prev === undefined || prev === null) {
+    return { html: '<span class="yoy-new">新</span>', cls: 'yoy-new' };
+  }
+  const p = Number(prev) || 0;
+  if (p === 0 && c === 0) return { html: '<span class="yoy-flat">—</span>', cls: 'yoy-flat' };
+  if (p === 0) return { html: '<span class="yoy-new">新</span>', cls: 'yoy-new' };
+  const diff = ((c - p) / p) * 100;
+  if (Math.abs(diff) < 0.05) return { html: '<span class="yoy-flat">±0%</span>', cls: 'yoy-flat' };
+  const sign = diff > 0 ? '+' : '';
+  const cls = diff > 0 ? 'yoy-up' : 'yoy-down';
+  const arrow = diff > 0 ? '▲' : '▼';
+  return { html: `<span class="${cls}">${arrow} ${sign}${diff.toFixed(1)}%</span>`, cls };
+}
+
+function renderKPI() {
+  const s = DATA.summary;
+  const lyIdx = buildLastYearIndex();
+  const lyS = lyIdx && lyIdx.summary ? lyIdx.summary : null;
+
+  // 计算 delta 标签
+  const deltaTag = (curr, prev, isPct) => {
+    if (prev === undefined || prev === null) return '<span class="delta delta-new">新</span>';
+    const c = Number(curr) || 0, p = Number(prev) || 0;
+    if (p === 0 && c === 0) return '<span class="delta delta-flat">±0</span>';
+    if (p === 0) return '<span class="delta delta-new">新</span>';
+    if (isPct) {
+      // 百分点差
+      const diff = c - p;
+      if (Math.abs(diff) < 0.05) return '<span class="delta delta-flat">±0pp</span>';
+      const cls = diff > 0 ? 'delta-up' : 'delta-down';
+      const arrow = diff > 0 ? '▲' : '▼';
+      const sign = diff > 0 ? '+' : '';
+      return `<span class="delta ${cls}">${arrow} ${sign}${diff.toFixed(1)}pp</span>`;
+    }
+    const diff = ((c - p) / p) * 100;
+    if (Math.abs(diff) < 0.05) return '<span class="delta delta-flat">±0%</span>';
+    const cls = diff > 0 ? 'delta-up' : 'delta-down';
+    const arrow = diff > 0 ? '▲' : '▼';
+    const sign = diff > 0 ? '+' : '';
+    return `<span class="delta ${cls}">${arrow} ${sign}${diff.toFixed(1)}%</span>`;
+  };
+
+  // 双列对比卡片 HTML
+  const vsCard = (label, curr, prev, sub, isPct) => {
+    const fmt = v => isPct ? (Number(v).toFixed(2) + '%') : Number(v).toLocaleString();
+    const prevHtml = (prev === undefined || prev === null)
+      ? `<div class="num" style="color:#3a4a7d;">—</div>`
+      : `<div class="num">${fmt(prev)}</div>`;
+    return `
+    <div class="kpi-card">
+      <div class="label">${label}</div>
+      <div class="kpi-vs">
+        <div class="kpi-side curr"><div class="tag">今年</div>${`<div class="num">${fmt(curr)}</div>`}</div>
+        <div class="kpi-vs-arrow">${deltaTag(curr, prev, isPct)}</div>
+        <div class="kpi-side prev"><div class="tag">去年</div>${prevHtml}</div>
+      </div>
+      <div class="sub">${sub}</div>
+    </div>`;
+  };
+
+  const singleCard = (label, value, sub) => `
+    <div class="kpi-card single">
+      <div class="label">${label}</div>
+      <div class="value">${value}</div>
+      <div class="sub">${sub}</div>
+    </div>`;
+
+  // —— 顶部 KPI 总览：只展示「今年」数字（去年 + 同比已挪到底部"📅 两年对比"专区）——
+  const cards = [
+    singleCard('入库简历总数', s.totalResumes.toLocaleString(),
+      `覆盖 ${s.totalAmbassadors} 位大使 · ${s.totalSchools} 所院校`),
+    singleCard('Offer 总数', s.totalOffers.toLocaleString(),
+      `实习 ${s.internOffer} + 应届 ${s.graduateOffer}`),
+    singleCard('总 Offer 率', Number(s.offerRate).toFixed(2) + '%', '简历→Offer 转化率'),
+    singleCard('精英大使', s.eliteCount, '内推 ≥' + s.eliteThreshold + ' 人'),
+    singleCard('青云计划', s.qingyunResumes.toLocaleString(),
+      `Offer ${s.qingyunOffers} · 率 ${s.qingyunOfferRate}%`),
+    singleCard('人均推荐', Math.round(s.totalResumes / s.totalAmbassadors), '简历 / 大使'),
+    singleCard('青云 Offer', s.qingyunOffers,
+      `实习 ${s.qingyunInternOffer} + 应届 ${s.qingyunGraduateOffer}`),
+    singleCard('7个垂类简历',
+      DATA.categoryData.reduce((a, c) => a + c.resumes, 0).toLocaleString(),
+      '详见下方垂类分析'),
+  ];
+  document.getElementById('kpiRow').innerHTML = cards.join('');
+
+  // —— 底部「📅 两年对比」专区：渲染 3 张核心 KPI 双列对比卡 ——
+  const cmpHost = document.getElementById('kpiCompareRow');
+  if (cmpHost) {
+    if (!lyS) {
+      cmpHost.innerHTML = `<div class="chart-card" style="grid-column:1/-1;text-align:center;color:#6b7db3;padding:20px;">
+        去年数据加载中或不可用…</div>`;
+    } else {
+      const cmp = [
+        vsCard('入库简历总数', s.totalResumes, lyS.totalResumes,
+          `覆盖 ${s.totalAmbassadors} 位大使 · ${s.totalSchools} 所院校`),
+        vsCard('Offer 总数', s.totalOffers, lyS.totalOffers,
+          `今年实习 ${s.internOffer} + 应届 ${s.graduateOffer} · 去年 ${lyS.internOffer}/${lyS.graduateOffer}`),
+        vsCard('总 Offer 率', s.offerRate, lyS.offerRate, '简历→Offer 转化率', true),
+      ];
+      cmpHost.innerHTML = cmp.join('');
+    }
+  }
+}
+
+// ============================================================
+// 📈 周对比（本周 vs 上周基线）
+// ============================================================
+function renderWeekCompare() {
+  const wrap = document.getElementById('weekCompareWrap');
+  if (!wrap) return;
+  fetch('/api/week_compare').then(r => r.json()).then(d => {
+    if (!d || !d.loaded) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    const desc = document.getElementById('weekCompareDesc');
+    const empty = document.getElementById('weekCompareEmpty');
+    const kpiHost = document.getElementById('weekCompareKPI');
+    const eliteWrap = document.getElementById('weekCompareElites');
+    const eliteList = document.getElementById('weekCompareEliteList');
+    const lostWrap = document.getElementById('weekCompareLost');
+    const lostList = document.getElementById('weekCompareLostList');
+    const growthWrap = document.getElementById('weekCompareGrowth');
+    const growthBody = document.querySelector('#weekCompareGrowthTable tbody');
+
+    if (!d.has_baseline) {
+      empty.style.display = '';
+      empty.textContent = d.message || '暂无周快照基线';
+      kpiHost.innerHTML = '';
+      eliteWrap.style.display = 'none';
+      lostWrap.style.display = 'none';
+      growthWrap.style.display = 'none';
+      desc.textContent = '基线: —';
+      return;
+    }
+    empty.style.display = 'none';
+
+    const fmtDate = ts => {
+      if (!ts) return '';
+      try { return new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false }); } catch(e) { return ''; }
+    };
+    // 把 ISO 周键（如 2026-W20）转成那一周的日期范围（周一 ~ 周日）
+    const isoWeekRange = (key) => {
+      if (!key) return '';
+      const m = /^(\d{4})-W(\d{1,2})$/.exec(key);
+      if (!m) return '';
+      const y = +m[1], w = +m[2];
+      // ISO 8601: 第 1 周包含当年 1 月 4 日；用 Jan 4 + 偏移计算这一周的周一
+      const jan4 = new Date(Date.UTC(y, 0, 4));
+      const jan4Dow = jan4.getUTCDay() || 7; // 周日返回 0，矫正为 7
+      const week1Mon = new Date(jan4);
+      week1Mon.setUTCDate(jan4.getUTCDate() - (jan4Dow - 1));
+      const mon = new Date(week1Mon);
+      mon.setUTCDate(week1Mon.getUTCDate() + (w - 1) * 7);
+      const sun = new Date(mon);
+      sun.setUTCDate(mon.getUTCDate() + 6);
+      const fmt = d => `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+      return `${fmt(mon)} ~ ${fmt(sun)}`;
+    };
+    const baselineRange = isoWeekRange(d.baseline_week);
+    const thisRange = isoWeekRange(d.this_week);
+    const writeTip = d.baseline_time ? `（快照写入时刻：${fmtDate(d.baseline_time)}）` : '';
+    desc.innerHTML = `基线 = <b style="color:#e8ecf8;" title="${writeTip}">${d.baseline_week}</b>${baselineRange ? `<span style="color:#8b97c8;">（${baselineRange} 的数据末态）</span>` : ''} · 当前 = <b style="color:#e8ecf8;">${d.this_week}</b>${thisRange ? `<span style="color:#8b97c8;">（${thisRange}）</span>` : ''}`;
+
+    // ---- KPI delta 卡片 ----
+    const deltaCard = (label, obj, isPct) => {
+      const c = obj.curr || 0, p = obj.prev || 0, dlt = obj.delta || 0;
+      const pos = dlt > 0, neg = dlt < 0;
+      const cls = pos ? 'delta-up' : (neg ? 'delta-down' : 'delta-flat');
+      const arrow = pos ? '▲' : (neg ? '▼' : '');
+      const sign = pos ? '+' : '';
+      const fmt = v => isPct ? (Number(v).toFixed(2) + '%') : Number(v).toLocaleString();
+      const dltFmt = isPct ? (sign + Number(dlt).toFixed(2) + 'pp') : (sign + Number(dlt).toLocaleString());
+      return `
+        <div class="kpi-card single" style="padding:14px 10px 10px;">
+          <div class="label">${label}</div>
+          <div class="value" style="font-size:24px;">${fmt(c)}</div>
+          <div class="sub" style="display:flex;justify-content:center;align-items:center;gap:6px;">
+            <span class="delta ${cls}">${arrow} ${dltFmt}</span>
+            <span style="color:#4a5a9d;">基线 ${fmt(p)}</span>
+          </div>
+        </div>`;
+    };
+    const k = d.kpi || {};
+    kpiHost.innerHTML = [
+      deltaCard('入库简历', k.totalResumes || {curr:0,prev:0,delta:0}),
+      deltaCard('Offer 总数', k.totalOffers || {curr:0,prev:0,delta:0}),
+      deltaCard('精英大使', k.eliteCount || {curr:0,prev:0,delta:0}),
+      deltaCard('青云简历', k.qingyunResumes || {curr:0,prev:0,delta:0}),
+      deltaCard('青云 Offer', k.qingyunOffers || {curr:0,prev:0,delta:0}),
+    ].join('');
+
+    // ---- 新晋精英大使 ----
+    const amb = d.ambassadors || {};
+    const news = amb.newElites || [];
+    if (news.length) {
+      eliteWrap.style.display = '';
+      eliteList.innerHTML = news.map(x => `
+        <div style="background:rgba(0,230,118,.10);border:1px solid rgba(0,230,118,.35);border-radius:8px;padding:8px 12px;min-width:180px;">
+          <div style="color:#00e676;font-weight:700;font-size:13px;">🏅 ${x.name}</div>
+          <div style="font-size:11px;color:#b8c5e8;margin-top:3px;">
+            简历 ${x.prevResumes.toLocaleString()} → <b style="color:#fff;">${x.currResumes.toLocaleString()}</b>
+            <span style="color:#00e676;">(+${x.addResumes.toLocaleString()})</span>
+          </div>
+          <div style="font-size:11px;color:#6b7db3;">Offer ${x.prevOffers} → ${x.currOffers}</div>
+        </div>
+      `).join('');
+    } else {
+      eliteWrap.style.display = '';
+      eliteList.innerHTML = `<div style="color:#6b7db3;font-size:12px;padding:6px 0;">本周暂无新晋精英大使（精英人数 ${amb.elitePrevCount} → ${amb.eliteCurrCount}，净变化 ${amb.eliteDelta >= 0 ? '+' : ''}${amb.eliteDelta}）</div>`;
+    }
+
+    // ---- 降出精英 ----
+    const lost = amb.lostElites || [];
+    if (lost.length) {
+      lostWrap.style.display = '';
+      lostList.innerHTML = lost.map(x => `
+        <div style="background:rgba(255,107,138,.08);border:1px solid rgba(255,107,138,.30);border-radius:6px;padding:5px 10px;font-size:12px;color:#ff6b8a;">
+          ${x.name}（${x.prevResumes} → ${x.currResumes}）
+        </div>
+      `).join('');
+    } else {
+      lostWrap.style.display = 'none';
+    }
+
+    // ---- 增长 TOP 表 ----
+    const growth = (amb.growthTop || []).slice(0, 15);
+    if (growth.length) {
+      growthWrap.style.display = '';
+      growthBody.innerHTML = growth.map(x => {
+        const badge = x.isElite
+          ? '<span style="color:#f0a500;">🏅 精英</span>'
+          : (x.wasElite ? '<span style="color:#ff6b8a;">已降出</span>' : '<span style="color:#6b7db3;">—</span>');
+        const offDelta = x.addOffers > 0 ? `<span style="color:#00e676;">+${x.addOffers}</span>` : (x.addOffers < 0 ? `<span style="color:#ff6b8a;">${x.addOffers}</span>` : '0');
+        return `
+          <tr style="border-bottom:1px solid #1a2654;">
+            <td style="padding:6px 8px;color:#e8ecf8;">${x.name}</td>
+            <td style="text-align:right;padding:6px 8px;color:#00e676;font-weight:600;">+${x.add.toLocaleString()}</td>
+            <td style="text-align:right;padding:6px 8px;color:#6b7db3;">${x.prevResumes.toLocaleString()}</td>
+            <td style="text-align:right;padding:6px 8px;color:#fff;">${x.currResumes.toLocaleString()}</td>
+            <td style="text-align:right;padding:6px 8px;">${offDelta}</td>
+            <td style="text-align:center;padding:6px 8px;">${badge}</td>
+          </tr>`;
+      }).join('');
+    } else {
+      growthWrap.style.display = 'none';
+    }
+  }).catch(err => {
+    console.warn('[weekCompare] fetch failed', err);
+    wrap.style.display = 'none';
+  });
+}
+
+// ============================================================
+// 漏斗卡片（纯数字展示）
+// ============================================================
+function renderFunnelStages() {
+  const dist = DATA.statusDist;
+  const L1 = DATA.summary.totalResumes;
+  const L2stages = ['初试','集体面试','复试','HR面试','GM/面委会/EVP面试','已锁定在项目'];
+  const L3stages = ['实习生考核中','实习已录用','毕业生已录用'];
+  const L2 = L2stages.reduce((s, n) => s + (dist[n] || 0), 0);
+  const L3 = L3stages.reduce((s, n) => s + (dist[n] || 0), 0);
+
+  document.getElementById('stage1Val').textContent = L1.toLocaleString();
+  document.getElementById('stage2Val').textContent = L2.toLocaleString();
+  document.getElementById('stage3Val').textContent = L3.toLocaleString();
+  document.getElementById('stage2Rate').textContent = `${(L2/L1*100).toFixed(2)}%`;
+  document.getElementById('stage3Rate').textContent = `${(L3/L1*100).toFixed(2)}%`;
+  document.getElementById('arrow1Num').textContent = `${(L2/L1*100).toFixed(1)}%`;
+  document.getElementById('arrow2Num').textContent = `${(L3/L2*100).toFixed(1)}%`;
+}
+
+// ============================================================
+// 三层漏斗（ECharts 版本 — 聚合三层，不展示中间态明细）
+function renderFunnelChart() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartFunnel')) || echarts.init(document.getElementById('chartFunnel'));
+  const dist = DATA.statusDist;
+  const L1 = DATA.summary.totalResumes;
+  const L2stages = ['初试','集体面试','复试','HR面试','GM/面委会/EVP面试','已锁定在项目'];
+  const L3stages = ['实习生考核中','实习已录用','毕业生已录用'];
+  const L2 = L2stages.reduce((s, n) => s + (dist[n] || 0), 0);
+  const L3 = L3stages.reduce((s, n) => s + (dist[n] || 0), 0);
+
+  const funnelData = [
+    { name: '入库简历', value: L1 },
+    { name: '发起面试', value: L2 },
+    { name: '录用流程中', value: L3 }
+  ];
+
+  chart.setOption({
+    tooltip: {
+      trigger: 'item',
+      formatter: p => {
+        const base = p.dataIndex === 0 ? L1 : p.dataIndex === 1 ? L2 : L3;
+        const rate = (p.value / L1 * 100).toFixed(2) + '%';
+        const prev = p.dataIndex === 0 ? '' : '<br>占总量：' + (p.value / L1 * 100).toFixed(2) + '%';
+        return p.name + '：<b>' + p.value.toLocaleString() + '</b>（' + rate + '）' + prev;
+      }
+    },
+    color: ['#00d4ff', '#7b61ff', '#00e676'],
+    series: [{
+      type: 'funnel',
+      left: '10%', top: '10%', bottom: '10%', width: '80%',
+      sort: 'descending',
+      gap: 6,
+      label: {
+        show: true, position: 'inside',
+        color: '#fff', fontSize: 13,
+        formatter: p => p.name + '\n' + p.value.toLocaleString()
+      },
+      data: funnelData,
+      itemStyle: { borderRadius: 8, borderColor: '#0a0e27', borderWidth: 2 }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 流程节点饼图
+// ============================================================
+function renderFlowPie() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartFlowPie')) || echarts.init(document.getElementById('chartFlowPie'));
+  const dist = DATA.statusDist;
+  const entries = Object.entries(dist).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }));
+  const colors = ['#00d4ff','#7b61ff','#00e676','#f0a500','#ff6b8a','#c084fc','#34d399','#fbbf24','#f87171','#60a5fa','#a78bfa','#6ee7b7'];
+  chart.setOption({
+    tooltip: {
+      trigger: 'item',
+      formatter: p => p.name + '：<b>' + p.value.toLocaleString() + '</b>（' + p.percent.toFixed(1) + '%）'
+    },
+    color: colors,
+    series: [{
+      type: 'pie',
+      radius: ['35%', '70%'],
+      center: ['50%', '50%'],
+      sort: 'descending',
+      label: { show: true, color: '#b8c5e8', fontSize: 10, formatter: p => p.name + ': ' + p.value.toLocaleString() },
+      labelLine: { show: true },
+      data: entries,
+      itemStyle: { borderRadius: 4, borderColor: '#0a0e27', borderWidth: 2 }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// BG
+// ============================================================
+function renderBG() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartBG')) || echarts.init(document.getElementById('chartBG'));
+  const sorted = [...DATA.bgData].sort((a, b) => b.value - a.value);
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => p[0].name + '<br/><b>' + p[0].value.toLocaleString() + '</b> 份' },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3' }, splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', data: sorted.map(d => d.name), axisLabel: { color: '#b8c5e8', fontSize: 11 }, inverse: true },
+    series: [{
+      type: 'bar', data: sorted.map(d => d.value),
+      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#00d4ff' }, { offset: 1, color: '#7b61ff' }]), borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: '#00d4ff', fontSize: 10, formatter: '{c}' }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 青云分布
+// ============================================================
+function renderQingyun() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartQingyun')) || echarts.init(document.getElementById('chartQingyun'));
+  const s = DATA.summary;
+  chart.setOption({
+    tooltip: { trigger: 'item', formatter: p => p.name + '<br/><b>' + p.value.toLocaleString() + '</b>' },
+    legend: { bottom: '5%', textStyle: { color: '#6b7db3', fontSize: 11 } },
+    series: [{
+      type: 'pie', radius: ['40%', '70%'], center: ['50%', '45%'],
+      label: { color: '#b8c5e8', fontSize: 12, formatter: '{b}\n{c}' },
+      data: [
+        { name: '青云实习', value: s.qingyunIntern },
+        { name: '青云计划-应届生', value: s.qingyunGrad }
+      ],
+      itemStyle: { borderRadius: 8, borderColor: '#0a0e27', borderWidth: 2 }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 青云岗位柱状图
+// ============================================================
+function renderQyjobs() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartQyjobs')) || echarts.init(document.getElementById('chartQyjobs'));
+  const jobs = (DATA.qingyunJobs || []).slice(0, 10);
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => p[0].name + '<br/><b>' + p[0].value + '</b> 人' },
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3' }, splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', data: jobs.map(d => d.name).reverse(), axisLabel: { color: '#b8c5e8', fontSize: 10 } },
+    series: [{
+      type: 'bar', data: jobs.map(d => d.value).reverse(),
+      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#00d4ff' }, { offset: 1, color: '#00e676' }]), borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: '#00d4ff', fontSize: 10 }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 7垂类卡片
+// ============================================================
+function renderCatCards() {
+  const cats = DATA.categoryData;
+  const maxR = Math.max(...cats.map(c => c.resumes), 1);
+  const container = document.getElementById('catCards');
+  container.innerHTML = cats.map((c, idx) => {
+    const rate = c.resumes > 0 ? (c.offers / c.resumes * 100).toFixed(2) : '0.00';
+    const colors = ['#7b61ff', '#00d4ff', '#00e676', '#f0a500', '#ff6b8a', '#c084fc', '#34d399'];
+    const barColor = colors[idx % colors.length];
+    return `
+    <div class="cat-card">
+      <div class="cat-header">
+        <div class="cat-name">${c.name}</div>
+        <div class="cat-badge">${idx + 1}</div>
+      </div>
+      <div class="cat-metrics">
+        <div class="cat-metric">
+          <div class="cat-metric-value">${c.resumes.toLocaleString()}</div>
+          <div class="cat-metric-label">内推简历</div>
+        </div>
+        <div class="cat-metric">
+          <div class="cat-metric-value cat-offer-value">${c.offers}</div>
+          <div class="cat-metric-label">Offer</div>
+        </div>
+      </div>
+      <div class="cat-bar-bg">
+        <div class="cat-bar-fill" style="width:${c.resumes/maxR*100}%;background:linear-gradient(90deg, ${barColor}88, ${barColor})"></div>
+      </div>
+      <div class="cat-rate">转化率 <span>${rate}%</span></div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// 垂类饼图
+// ============================================================
+function renderCategory() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartCategory')) || echarts.init(document.getElementById('chartCategory'));
+  const cats = DATA.categoryData;
+  chart.setOption({
+    tooltip: { trigger: 'item', formatter: p => p.name + '<br/>简历 <b>' + p.value.toLocaleString() + '</b><br/>Offer <b>' + cats[p.dataIndex].offers + '</b>' },
+    legend: { orient: 'vertical', right: '3%', top: 'center', textStyle: { color: '#6b7db3', fontSize: 10 }, itemWidth: 10 },
+    series: [{
+      type: 'pie', radius: ['30%', '65%'],
+      data: cats.map(c => ({ name: c.name, value: c.resumes })),
+      label: { color: '#b8c5e8', fontSize: 10, formatter: '{b}:{c}' },
+      itemStyle: { borderRadius: 6, borderColor: '#0a0e27', borderWidth: 2 }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 区域 — 今年（简洁版）
+// ============================================================
+function _renderRegionFor(domId, rows, accent) {
+  // rows: [{name,resumes,offers}]，accent: { bar1, bar2, line }
+  const chart = echarts.getInstanceByDom(document.getElementById(domId)) || echarts.init(document.getElementById(domId));
+  const sorted = [...rows].sort((a, b) => b.resumes - a.resumes);
+  const rate = (o, r) => r > 0 ? +(o / r * 100).toFixed(2) : 0;
+  const currRate = sorted.map(d => rate(d.offers, d.resumes));
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+      const i = p[0].dataIndex;
+      const d = sorted[i];
+      return `<b>${d.name}</b><br/>简历 <b>${d.resumes.toLocaleString()}</b> · Offer <b>${d.offers}</b><br/>` +
+             `<span style="color:${accent.line}">Offer 率 ${currRate[i]}%</span>`;
+    }},
+    legend: { textStyle: { color: '#b8c5e8', fontSize: 11 }, top: '2%', data: ['简历', 'Offer', 'Offer率'] },
+    grid: { left: '3%', right: '10%', bottom: '3%', top: '15%', containLabel: true },
+    xAxis: [
+      { type: 'value', name: '人数', nameTextStyle: { color: '#6b7db3', fontSize: 10 },
+        axisLabel: { color: '#6b7db3' }, splitLine: { lineStyle: { color: '#1a2255' } } },
+      { type: 'value', name: 'Offer率%', nameTextStyle: { color: '#6b7db3', fontSize: 10 },
+        position: 'top', axisLabel: { color: '#6b7db3', formatter: '{value}%' },
+        splitLine: { show: false } }
+    ],
+    yAxis: { type: 'category', data: sorted.map(d => d.name),
+      axisLabel: { color: '#b8c5e8', fontSize: 11 }, inverse: true },
+    series: [
+      { name: '简历', type: 'bar', xAxisIndex: 0, data: sorted.map(d => d.resumes),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: accent.bar1 }, { offset: 1, color: accent.bar1 + '88' }]), borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', color: accent.bar1, fontSize: 10, formatter: '{c}' } },
+      { name: 'Offer', type: 'bar', xAxisIndex: 0, data: sorted.map(d => d.offers),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: accent.bar2 }, { offset: 1, color: accent.bar2 + '88' }]), borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', color: accent.bar2, fontSize: 10, formatter: '{c}' } },
+      { name: 'Offer率', type: 'line', xAxisIndex: 1, data: currRate, symbol: 'circle', symbolSize: 8,
+        lineStyle: { color: accent.line, width: 2 }, itemStyle: { color: accent.line },
+        label: { show: true, color: accent.line, fontSize: 10, formatter: '{c}%', position: 'top' } }
+    ]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+function renderRegion() {
+  // 今年：青-绿-橙
+  _renderRegionFor('chartRegion', DATA.regionRank, { bar1: '#00d4ff', bar2: '#00e676', line: '#f0a500' });
+}
+
+// 去年版：紫-蓝灰-粉
+function renderRegionLastYear() {
+  const lyIdx = buildLastYearIndex();
+  if (!lyIdx || !lyIdx.regionRank) return;
+  _renderRegionFor('chartRegionLY', lyIdx.regionRank, { bar1: '#7b61ff', bar2: '#8a96c4', line: '#ff6b8a' });
+}
+
+// ============================================================
+// UHR — 今年（简洁版） + 去年版 + Offer 率排行榜
+// ============================================================
+
+// 当前 UHR 视图选中的区域（'all' = 全部）。仅作用于 chartUHR / chartUHRRateRank
+let currentUHRRegion = 'all';
+
+// 白名单顺序（与后端 VALID_REGIONS 一致；'all' 永远在最前）
+const UHR_REGION_ORDER = ['华北', '华东', '华南', '华中', '西区', '港校', '欧洲', '北美', '亚太', 'OHR', 'IEG', '其他'];
+
+function _filteredUHRRows() {
+  const rows = DATA.uhrRank || [];
+  if (currentUHRRegion === 'all') return rows;
+  return rows.filter(d => (d.region || '其他') === currentUHRRegion);
+}
+
+function buildUHRRegionFilter() {
+  const wrap = document.getElementById('uhrRegionFilter');
+  if (!wrap) return;
+  // 统计每个区域的 UHR 数（用于显示在 pill 后面，并隐藏 0 个的）
+  const counts = {};
+  (DATA.uhrRank || []).forEach(d => {
+    const r = d.region || '其他';
+    counts[r] = (counts[r] || 0) + 1;
+  });
+  const totalUHR = (DATA.uhrRank || []).length;
+
+  // 清掉旧 pills（保留 label）
+  wrap.querySelectorAll('.region-pill').forEach(el => el.remove());
+
+  const mkPill = (key, text, count) => {
+    const btn = document.createElement('button');
+    btn.className = 'region-pill' + (currentUHRRegion === key ? ' active' : '');
+    btn.dataset.region = key;
+    btn.innerHTML = count != null ? `${text} <span style="opacity:.6;font-size:11px">(${count})</span>` : text;
+    if (count === 0) btn.classList.add('disabled');
+    btn.onclick = () => {
+      if (count === 0) return;
+      setUHRRegion(key);
+    };
+    return btn;
+  };
+
+  wrap.appendChild(mkPill('all', '全部', totalUHR));
+  UHR_REGION_ORDER.forEach(r => {
+    const c = counts[r] || 0;
+    if (c === 0) return; // 没有 UHR 的区域直接不显示，避免一片灰
+    wrap.appendChild(mkPill(r, r, c));
+  });
+}
+
+function setUHRRegion(region) {
+  if (currentUHRRegion === region) return;
+  currentUHRRegion = region;
+  // 切换 active 样式
+  document.querySelectorAll('#uhrRegionFilter .region-pill').forEach(el => {
+    el.classList.toggle('active', el.dataset.region === region);
+  });
+  // 仅刷新两张 UHR 图
+  renderUHR();
+  renderUHRRateRank();
+}
+
+function _renderUHRFor(domId, rows, accent) {
+  const chart = echarts.getInstanceByDom(document.getElementById(domId)) || echarts.init(document.getElementById(domId));
+  const top15 = [...rows].sort((a, b) => b.resumes - a.resumes).slice(0, 15);
+  const rate = (o, r) => r > 0 ? +(o / r * 100).toFixed(2) : 0;
+  const currRate = top15.map(d => rate(d.offers, d.resumes));
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+      const i = p[0].dataIndex;
+      const d = top15[i];
+      return `<b>${d.name}</b><br/>简历 <b>${d.resumes.toLocaleString()}</b> · Offer <b>${d.offers}</b><br/>` +
+             `<span style="color:${accent.line}">Offer 率 ${currRate[i]}%</span>`;
+    }},
+    legend: { textStyle: { color: '#b8c5e8', fontSize: 10 }, top: '2%', data: ['简历', 'Offer', 'Offer率'] },
+    grid: { left: '3%', right: '10%', bottom: '3%', top: '15%', containLabel: true },
+    xAxis: [
+      { type: 'value', name: '人数', nameTextStyle: { color: '#6b7db3', fontSize: 10 },
+        axisLabel: { color: '#6b7db3', fontSize: 10 }, splitLine: { lineStyle: { color: '#1a2255' } } },
+      { type: 'value', name: 'Offer率%', nameTextStyle: { color: '#6b7db3', fontSize: 10 },
+        position: 'top', axisLabel: { color: '#6b7db3', fontSize: 10, formatter: '{value}%' },
+        splitLine: { show: false } }
+    ],
+    yAxis: { type: 'category', data: top15.map(d => d.name),
+      axisLabel: { color: '#b8c5e8', fontSize: 10 }, inverse: true },
+    series: [
+      { name: '简历', type: 'bar', xAxisIndex: 0, data: top15.map(d => d.resumes),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: accent.bar1 }, { offset: 1, color: accent.bar1 + '88' }]), borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', color: accent.bar1, fontSize: 9, formatter: '{c}' } },
+      { name: 'Offer', type: 'bar', xAxisIndex: 0, data: top15.map(d => d.offers),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: accent.bar2 }, { offset: 1, color: accent.bar2 + '88' }]), borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', color: accent.bar2, fontSize: 9, formatter: '{c}' } },
+      { name: 'Offer率', type: 'line', xAxisIndex: 1, data: currRate, symbol: 'circle', symbolSize: 7,
+        lineStyle: { color: accent.line, width: 2 }, itemStyle: { color: accent.line },
+        label: { show: true, color: accent.line, fontSize: 9, formatter: '{c}%', position: 'top' } }
+    ]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+function renderUHR() {
+  // 今年：紫-绿-橙
+  const rows = _filteredUHRRows();
+  const titleEl = document.getElementById('chartUHRTitle');
+  if (titleEl) {
+    const tag = currentUHRRegion === 'all' ? '' : `（${currentUHRRegion}）`;
+    titleEl.textContent = `By UHR — 今年${tag}（TOP15 by 内推数）`;
+  }
+  _renderUHRFor('chartUHR', rows.slice(0, 15), { bar1: '#7b61ff', bar2: '#00e676', line: '#f0a500' });
+}
+
+function renderUHRLastYear() {
+  const lyIdx = buildLastYearIndex();
+  if (!lyIdx || !lyIdx.uhrRank) return;
+  _renderUHRFor('chartUHRLY', lyIdx.uhrRank.slice(0, 15), { bar1: '#8a76ff', bar2: '#8a96c4', line: '#ff6b8a' });
+}
+
+// 今年 UHR 按 Offer 率降序排行榜（最少 5 份简历才计入，避免极小样本干扰）
+function renderUHRRateRank() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartUHRRateRank')) || echarts.init(document.getElementById('chartUHRRateRank'));
+  const titleEl = document.getElementById('chartUHRRateRankTitle');
+  if (titleEl) {
+    const tag = currentUHRRegion === 'all' ? '' : `（${currentUHRRegion}）`;
+    titleEl.textContent = `🏆 UHR Offer 率排行${tag}（TOP15 by 转化率）`;
+  }
+  const MIN_RESUMES = 5;
+  const rate = (o, r) => r > 0 ? +(o / r * 100).toFixed(2) : 0;
+  const ranked = (_filteredUHRRows() || [])
+    .filter(d => (d.resumes || 0) >= MIN_RESUMES)
+    .map(d => ({ name: d.name, rate: rate(d.offers, d.resumes), resumes: d.resumes, offers: d.offers }))
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, 15);
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+      const i = p[0].dataIndex;
+      const d = ranked[i];
+      return `<b>${d.name}</b><br/>Offer 率 <span style="color:#f0a500"><b>${d.rate}%</b></span><br/>` +
+             `简历 ${d.resumes.toLocaleString()} · Offer ${d.offers}`;
+    }},
+    grid: { left: '3%', right: '10%', bottom: '3%', top: '6%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3', fontSize: 10, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', inverse: true,
+      data: ranked.map((d, i) => `${i + 1}. ${d.name}`),
+      axisLabel: { color: '#b8c5e8', fontSize: 10 } },
+    series: [
+      { name: 'Offer 率', type: 'bar', data: ranked.map(d => d.rate),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#f0a500' }, { offset: 1, color: '#ff6b8a' }]), borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', color: '#f0a500', fontSize: 10, fontWeight: 600,
+          formatter: p => p.value + '%' } }
+    ]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 校园大使图表
+// ============================================================
+function renderAmbassadorChart() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartAmbassador')) || echarts.init(document.getElementById('chartAmbassador'));
+  const sorted = [...DATA.ambassadorRank].sort((a, b) => ambassadorChartSort === 'offers' ? b.offers - a.offers : b.resumes - a.resumes).slice(0, 20);
+  const metric = ambassadorChartSort === 'offers' ? 'offers' : 'resumes';
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+      const d = sorted[p[0].dataIndex];
+      return (d.name || '') + '<br/>院校: ' + (d.school || '-') + '<br/>简历: <b>' + (d.resumes || 0).toLocaleString() + '</b><br/>Offer: <b>' + (d.offers || 0) + '</b>';
+    }},
+    grid: { left: '3%', right: '4%', bottom: '3%', top: '3%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3' }, splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', data: sorted.map(d => (d.name || '') + (d.isElite ? ' ' : '')), axisLabel: { color: '#b8c5e8', fontSize: 11 }, inverse: true },
+    series: [{
+      type: 'bar', data: sorted.map(d => d[metric] || 0),
+      itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#f0a500' }, { offset: 1, color: '#ff6b00' }]), borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right', color: '#f0a500', fontSize: 10, formatter: '{c}' }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+function switchAmbassadorChart(mode) {
+  ambassadorChartSort = mode;
+  document.getElementById('btnResumes').classList.toggle('active', mode === 'resumes');
+  document.getElementById('btnOffers').classList.toggle('active', mode === 'offers');
+  renderAmbassadorChart();
+}
+
+// ============================================================
+// 校园大使表格
+// ============================================================
+function renderAmbassadorTable() {
+  const sorted = [...DATA.ambassadorRank].sort((a, b) => b.resumes - a.resumes);
+  const lyIdx = buildLastYearIndex();
+  const lyMap = lyIdx ? lyIdx.ambassador : null;
+  const container = document.getElementById('tableAmbassador');
+  const showYoy = !!lyMap;
+  container.innerHTML = `<table><thead><tr><th>#</th><th>大使</th><th>院校</th><th>简历</th><th>Offer</th>${showYoy ? '<th>简历同比</th>' : ''}</tr></thead><tbody>` +
+    sorted.map(a => {
+      const badge = a.rank <= 3 ? 'rank-' + a.rank : 'rank-other';
+      let yoyCell = '';
+      if (showYoy) {
+        const ly = lyMap[String(a.name).trim()];
+        const t = yoyText(a.resumes, ly ? ly.resumes : undefined);
+        const lyTip = ly ? `去年 ${ly.resumes}` : '去年无';
+        yoyCell = `<td style="font-size:11px;"><span style="color:#6b7db3;">${lyTip}</span> ${t.html}</td>`;
+      }
+      return `<tr>
+        <td><span class="rank-badge ${badge}">${a.rank}</span></td>
+        <td>${a.name || '-'}${a.isElite ? '<span class="elite-tag">精英</span>' : ''}</td>
+        <td style="color:#6b7db3;font-size:12px;">${a.school || '-'}</td>
+        <td>${(a.resumes || 0).toLocaleString()}</td>
+        <td>${a.offers || 0}${a.offers > 0 ? '<span class="offer-tag">✓</span>' : ''}</td>
+        ${yoyCell}
+      </tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+// ============================================================
+// 青云岗位表格
+// ============================================================
+function renderQyjobsTable() {
+  const jobs = (DATA.qingyunJobs || []).slice(0, 10);
+  const container = document.getElementById('qyJobsTable');
+  container.innerHTML = `<table><thead><tr><th>#</th><th>投递岗位类</th><th>人数</th></tr></thead><tbody>` +
+    jobs.map((j, i) => `<tr><td><span class="rank-badge rank-${i+1<=3?i+1:'other'}">${i+1}</span></td><td>${j.name}</td><td>${j.value}</td></tr>`).join('') +
+    '</tbody></table>';
+}
+
+// ============================================================
+// 青云 Offer 明细（含 UHR / 大使 / 最高学历学校 筛选）
+// ============================================================
+function _qyEsc(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function _initQyFilters() {
+  const list = DATA.qingyunOfferDetails || [];
+  const uhrSet = new Set(), ambSet = new Set(), schoolSet = new Set();
+  list.forEach(r => {
+    if (r['uhr名称']) uhrSet.add(r['uhr名称']);
+    if (r['校园大使名称']) ambSet.add(r['校园大使名称']);
+    if (r['最高学历学校']) schoolSet.add(r['最高学历学校']);
+  });
+  const fillSelect = (id, set) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value || 'all';
+    sel.innerHTML = `<option value="all">全部</option>` +
+      Array.from(set).sort().map(v => `<option value="${_qyEsc(v)}">${_qyEsc(v)}</option>`).join('');
+    sel.value = cur;
+  };
+  fillSelect('qyFilterUhr', uhrSet);
+  fillSelect('qyFilterAmb', ambSet);
+  fillSelect('qyFilterSchool', schoolSet);
+}
+
+function resetQyOfferFilters() {
+  ['qyFilterUhr','qyFilterAmb','qyFilterSchool'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel) sel.value = 'all';
+  });
+  renderQyOfferDetails();
+}
+
+function renderQyOfferDetails() {
+  const list = DATA.qingyunOfferDetails || [];
+  const fUhr = (document.getElementById('qyFilterUhr') || {}).value || 'all';
+  const fAmb = (document.getElementById('qyFilterAmb') || {}).value || 'all';
+  const fSchool = (document.getElementById('qyFilterSchool') || {}).value || 'all';
+  const filtered = list.filter(r =>
+    (fUhr === 'all' || r['uhr名称'] === fUhr) &&
+    (fAmb === 'all' || r['校园大使名称'] === fAmb) &&
+    (fSchool === 'all' || r['最高学历学校'] === fSchool)
+  );
+
+  const total = list.length;
+  const grad = filtered.filter(r => r['简历流程状态'] === '毕业生已录用').length;
+  const intern = filtered.filter(r => r['简历流程状态'] === '实习已录用').length;
+  const other = filtered.length - grad - intern;
+  const info = document.getElementById('qyOfferCountInfo');
+  if (info) {
+    info.innerHTML = `共 <b style="color:#00d4ff;">${filtered.length}</b> / ${total} 条` +
+      ` &nbsp;·&nbsp; 毕业生已录用 <b style="color:#ffc107;">${grad}</b>` +
+      ` &nbsp;·&nbsp; 实习已录用 <b style="color:#00d4ff;">${intern}</b>` +
+      (other ? ` &nbsp;·&nbsp; 其他 ${other}` : '');
+  }
+
+  const cont = document.getElementById('qyOfferTable');
+  if (!cont) return;
+  if (filtered.length === 0) {
+    cont.innerHTML = `<div style="padding:24px;text-align:center;color:#6b7db3;">无匹配数据</div>`;
+    return;
+  }
+
+  const headers = [
+    ['#', 36], ['校园大使', 90], ['大使学校', 110], ['大使部门', 110],
+    ['UHR', 90], ['学生姓名', 80], ['最高学历', 70], ['学历学校', 130],
+    ['学历学院', 160], ['毕业时间', 90], ['流程状态', 110], ['投递岗位类', 220]
+  ];
+  const thead = `<thead><tr>${headers.map(([t,_]) => `<th>${t}</th>`).join('')}</tr></thead>`;
+
+  const rows = filtered.map((r, i) => {
+    const st = r['简历流程状态'] || '';
+    let stCell = _qyEsc(st);
+    if (st === '毕业生已录用') stCell = `<span class="qy-offer-tag qy-offer-grad">${stCell}</span>`;
+    else if (st === '实习已录用') stCell = `<span class="qy-offer-tag qy-offer-intern">${stCell}</span>`;
+    return `<tr>
+      <td style="color:#6b7db3;">${i+1}</td>
+      <td><b>${_qyEsc(r['校园大使名称'])}</b></td>
+      <td style="color:#b8c5e8;font-size:12px;">${_qyEsc(r['校园大使学校'])}</td>
+      <td style="color:#6b7db3;font-size:12px;">${_qyEsc(r['校园大使部门'])}</td>
+      <td style="color:#7b61ff;">${_qyEsc(r['uhr名称'])}</td>
+      <td>${_qyEsc(r['学生姓名'])}</td>
+      <td style="font-size:12px;">${_qyEsc(r['最高学历名称'])}</td>
+      <td style="color:#00d4ff;font-size:12px;">${_qyEsc(r['最高学历学校'])}</td>
+      <td style="color:#b8c5e8;font-size:12px;">${_qyEsc(r['最高学历学院'])}</td>
+      <td style="color:#6b7db3;font-size:12px;">${_qyEsc(r['最高学历毕业时间'])}</td>
+      <td>${stCell}</td>
+      <td style="font-size:12px;">${_qyEsc(r['投递岗位类'])}</td>
+    </tr>`;
+  }).join('');
+
+  cont.innerHTML = `<table style="font-size:12.5px;">${thead}<tbody>${rows}</tbody></table>`;
+}
+
+function renderQyOffer() {
+  _initQyFilters();
+  renderQyOfferDetails();
+}
+
+// ============================================================
+// 青云 Offer 排行三榜（大使 / UHR / 课题），均含实习/毕业拆分
+// ============================================================
+function _renderQyTopTable(containerId, list, nameHeader) {
+  const cont = document.getElementById(containerId);
+  if (!cont) return;
+  if (!list || list.length === 0) {
+    cont.innerHTML = `<div style="padding:24px;text-align:center;color:#6b7db3;">暂无数据</div>`;
+    return;
+  }
+  const max = Math.max(1, ...list.map(r => r.total));
+  const rows = list.map((r, i) => {
+    const rank = i + 1;
+    const badge = rank <= 3
+      ? `<span class="rank-badge rank-${rank}">${rank}</span>`
+      : `<span class="rank-badge rank-other">${rank}</span>`;
+    const w = Math.round(r.total / max * 100);
+    const grad = r.grad || 0, intern = r.intern || 0;
+    const gradHtml = `<span class="qs-pill qs-grad ${grad===0?'qs-zero':''}" title="毕业生已录用">${grad}</span>`;
+    const internHtml = `<span class="qs-pill qs-intern ${intern===0?'qs-zero':''}" title="实习已录用">${intern}</span>`;
+    return `<tr>
+      <td>${badge}</td>
+      <td>${_qyEsc(r.name)}</td>
+      <td style="white-space:nowrap;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;min-width:60px;background:#1a2550;border-radius:4px;height:6px;overflow:hidden;">
+            <div style="width:${w}%;height:100%;background:linear-gradient(90deg,#00d4ff,#7b61ff);"></div>
+          </div>
+          <b style="color:#00d4ff;min-width:22px;text-align:right;">${r.total}</b>
+        </div>
+      </td>
+      <td><div class="qy-split">${gradHtml}${internHtml}</div></td>
+    </tr>`;
+  }).join('');
+  cont.innerHTML = `<table>
+    <thead><tr>
+      <th style="width:36px;">#</th>
+      <th>${_qyEsc(nameHeader)}</th>
+      <th style="min-width:140px;">Offer 总数</th>
+      <th style="white-space:nowrap;">毕 / 实</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderQyTopRanks() {
+  _renderQyTopTable('qyTopAmbassador', DATA.qingyunTopAmbassador || [], '校园大使');
+  _renderQyTopTable('qyTopUhr', DATA.qingyunTopUhr || [], 'UHR');
+  _renderQyTopTable('qyTopJobclass', DATA.qingyunTopJobclass || [], '课题（投递岗位类）');
+}
+
+// ============================================================
+// 院校图表（支持区域筛选 + 滚动展示全部）
+// ============================================================
+let SCHOOL_REGION_FILTER = 'all';  // 当前选中的区域，'all' = 全部
+
+function _schoolRegions() {
+  const set = new Set();
+  (DATA.schoolRank || []).forEach(s => { if (s.region) set.add(s.region); });
+  return ['all', ...Array.from(set).sort()];
+}
+
+function _filteredSchools() {
+  const all = DATA.schoolRank || [];
+  if (SCHOOL_REGION_FILTER === 'all') return all;
+  return all.filter(s => s.region === SCHOOL_REGION_FILTER);
+}
+
+function _renderSchoolRegionTabs() {
+  const host = document.getElementById('schoolRegionTabs');
+  if (!host) return;
+  const regions = _schoolRegions();
+  host.innerHTML = regions.map(r => {
+    const label = r === 'all' ? '全部' : r;
+    const active = r === SCHOOL_REGION_FILTER ? 'active' : '';
+    return `<button class="toggle-btn ${active}" data-region="${r}"
+              onclick="switchSchoolRegion('${r}')">${label}</button>`;
+  }).join('');
+}
+
+function switchSchoolRegion(region) {
+  SCHOOL_REGION_FILTER = region;
+  _renderSchoolRegionTabs();
+  renderSchoolChart();
+  renderSchoolTable();
+}
+
+function renderSchoolChart() {
+  _renderSchoolRegionTabs();
+  const dom = document.getElementById('chartSchool');
+  // 旧实例销毁，避免切区域后高度错乱
+  const old = echarts.getInstanceByDom(dom);
+  if (old) old.dispose();
+  const chart = echarts.init(dom);
+  const list = _filteredSchools();
+  // 信息条
+  const info = document.getElementById('schoolCountInfo');
+  if (info) info.textContent = `共 ${list.length} 所院校` +
+    (SCHOOL_REGION_FILTER !== 'all' ? `（${SCHOOL_REGION_FILTER}）` : '');
+
+  if (!list.length) {
+    chart.setOption({
+      title: { text: '该区域暂无数据', left: 'center', top: 'middle',
+        textStyle: { color: '#6b7db3', fontSize: 13 } }
+    });
+    return;
+  }
+
+  // 每行 ~24px，全部院校都展示，超过可视高度时通过 dataZoom 滚动
+  const ROW_PX = 24;
+  const WINDOW_ROWS = 22;  // 容器内同时可见 ~22 行
+  const startPct = 0;
+  const endPct = list.length <= WINDOW_ROWS ? 100 : (WINDOW_ROWS / list.length) * 100;
+
+  chart.setOption({
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: p => {
+        const d = list[p[0].dataIndex];
+        const rate = d.resumes ? (d.offers / d.resumes * 100).toFixed(2) : '0.00';
+        return `<b>${d.name || ''}</b><br/>` +
+          `区域：${d.region || '-'}<br/>` +
+          `简历：<b>${(d.resumes || 0).toLocaleString()}</b><br/>` +
+          `Offer：<b>${d.offers || 0}</b>（${rate}%）`;
+      }
+    },
+    grid: { left: 4, right: 60, top: 8, bottom: 8, containLabel: true },
+    xAxis: {
+      type: 'value',
+      axisLabel: { color: '#6b7db3' },
+      splitLine: { lineStyle: { color: '#1a2255' } }
+    },
+    yAxis: {
+      type: 'category',
+      data: list.map(d => d.name || ''),
+      axisLabel: { color: '#b8c5e8', fontSize: 11 },
+      inverse: true
+    },
+    dataZoom: [
+      // 内置（鼠标滚轮 / 拖拽）
+      { type: 'inside', yAxisIndex: 0, start: startPct, end: endPct, zoomOnMouseWheel: true, moveOnMouseWheel: true, moveOnMouseMove: true },
+      // 右侧滑块
+      { type: 'slider', yAxisIndex: 0, start: startPct, end: endPct, width: 14, right: 6, top: 8, bottom: 8,
+        handleSize: '80%', borderColor: 'transparent',
+        backgroundColor: 'rgba(26,34,85,0.4)', fillerColor: 'rgba(123,97,255,0.35)',
+        textStyle: { color: '#6b7db3', fontSize: 10 },
+        showDetail: false }
+    ],
+    series: [{
+      type: 'bar',
+      data: list.map(d => d.resumes || 0),
+      itemStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+          { offset: 0, color: '#ff6b8a' }, { offset: 1, color: '#ff9f7f' }
+        ]),
+        borderRadius: [0, 4, 4, 0]
+      },
+      label: { show: true, position: 'right', color: '#ff6b8a', fontSize: 10, formatter: '{c}' }
+    }]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 院校表格
+// ============================================================
+function renderSchoolTable() {
+  const list = _filteredSchools();   // 跟随区域筛选
+  const lyIdx = buildLastYearIndex();
+  const lyMap = lyIdx ? lyIdx.school : null;
+  const container = document.getElementById('tableSchool');
+  const showYoy = !!lyMap;
+  container.innerHTML = `<table><thead><tr><th>#</th><th>院校</th><th>简历</th><th>Offer</th><th>区域</th>${showYoy ? '<th>简历同比</th>' : ''}</tr></thead><tbody>` +
+    list.map(s => {
+      let yoyCell = '';
+      if (showYoy) {
+        const ly = lyMap[String(s.name).trim()];
+        const t = yoyText(s.resumes, ly ? ly.resumes : undefined);
+        const lyTip = ly ? `去年 ${ly.resumes}` : '去年无';
+        yoyCell = `<td style="font-size:11px;"><span style="color:#6b7db3;">${lyTip}</span> ${t.html}</td>`;
+      }
+      return `<tr>
+      <td><span class="rank-badge ${s.rank<=3?'rank-'+s.rank:'rank-other'}">${s.rank}</span></td>
+      <td>${s.name || '-'}</td>
+      <td>${(s.resumes||0).toLocaleString()}</td>
+      <td>${s.offers||0}${s.offers>0?'<span class="offer-tag">✓</span>':''}</td>
+      <td style="color:#6b7db3;font-size:12px;">${s.region||'-'}</td>
+      ${yoyCell}
+    </tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+// ============================================================
+// 📅 两年对比专区
+// ============================================================
+function _yoyPctText(curr, prev) {
+  if (prev == null || prev === 0) return '';
+  const diff = ((curr - prev) / prev) * 100;
+  const sign = diff > 0 ? '+' : '';
+  const arrow = Math.abs(diff) < 0.05 ? '—' : (diff > 0 ? '▲' : '▼');
+  const color = diff > 0 ? '#00e676' : '#ff6b8a';
+  return `{a|${arrow} ${sign}${diff.toFixed(1)}%}`;
+}
+
+function _cmpBarOption(items, color1, color2, valueKey) {
+  // items: [{name, curr, prev}]，valueKey 用于格式化（'pct' 用百分号，否则千分位）
+  const fmt = v => valueKey === 'pct' ? (v == null ? '-' : v + '%') : Number(v || 0).toLocaleString();
+  return {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+      const i = p[0].dataIndex;
+      const it = items[i];
+      let html = `<b>${it.name}</b><br/>`;
+      html += `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color1};margin-right:6px;"></span>今年 <b>${fmt(it.curr)}</b><br/>`;
+      html += `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color2};margin-right:6px;"></span>去年 <b>${fmt(it.prev)}</b>`;
+      if (it.prev != null && it.prev > 0) {
+        const diff = ((it.curr - it.prev) / it.prev) * 100;
+        const sign = diff > 0 ? '+' : '';
+        const cls = diff > 0 ? 'yoy-up' : (diff < 0 ? 'yoy-down' : 'yoy-flat');
+        const arrow = Math.abs(diff) < 0.05 ? '—' : (diff > 0 ? '▲' : '▼');
+        html += `<br/>同比 <span class="${cls}">${arrow} ${sign}${diff.toFixed(1)}%</span>`;
+      } else if (it.prev == null) {
+        html += '<br/><span class="yoy-new">去年无数据</span>';
+      }
+      return html;
+    }},
+    legend: { textStyle: { color: '#b8c5e8', fontSize: 11 }, top: '2%', data: ['今年', '去年'] },
+    grid: { left: '3%', right: '4%', bottom: '5%', top: '15%', containLabel: true },
+    xAxis: { type: 'category', data: items.map(d => d.name),
+      axisLabel: { color: '#b8c5e8', fontSize: 11, interval: 0, rotate: items.length > 6 ? 30 : 0 },
+      axisLine: { lineStyle: { color: '#2a3a7d' } } },
+    yAxis: { type: 'value', axisLabel: { color: '#6b7db3', fontSize: 10,
+      formatter: v => valueKey === 'pct' ? v + '%' : (v >= 10000 ? (v/10000) + 'w' : v) },
+      splitLine: { lineStyle: { color: '#1a2255' } } },
+    series: [
+      { name: '今年', type: 'bar', barGap: '20%', barCategoryGap: '40%',
+        data: items.map(d => d.curr),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: color1 }, { offset: 1, color: color1 + '88' }]), borderRadius: [6, 6, 0, 0] },
+        label: { show: true, position: 'top', color: color1, fontSize: 10, fontWeight: 600,
+          formatter: p => valueKey === 'pct' ? p.value + '%' : Number(p.value).toLocaleString() } },
+      { name: '去年', type: 'bar',
+        data: items.map(d => d.prev == null ? '-' : d.prev),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: color2 }, { offset: 1, color: color2 + '88' }]), borderRadius: [6, 6, 0, 0] },
+        label: { show: true, position: 'top', color: color2, fontSize: 10,
+          formatter: p => p.value === '-' ? '—' : (valueKey === 'pct' ? p.value + '%' : Number(p.value).toLocaleString()) } }
+    ]
+  };
+}
+
+// 内推数（总体 + 按区域 TOP6）
+function renderCmpResumes() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartCmpResumes')) || echarts.init(document.getElementById('chartCmpResumes'));
+  const lyIdx = buildLastYearIndex();
+  const lyS = lyIdx && lyIdx.summary ? lyIdx.summary : null;
+  const lyR = lyIdx ? lyIdx.region : null;
+  const items = [{ name: '总体', curr: DATA.summary.totalResumes, prev: lyS ? lyS.totalResumes : null }];
+  // 取今年 TOP6 区域
+  [...DATA.regionRank].sort((a,b)=>b.resumes-a.resumes).slice(0,6).forEach(r => {
+    const ly = lyR ? lyR[r.name] : null;
+    items.push({ name: r.name, curr: r.resumes, prev: ly ? ly.resumes : null });
+  });
+  chart.setOption(_cmpBarOption(items, '#00d4ff', '#7b61ff', 'num'));
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// Offer 数（总体 + 按区域 TOP6）
+function renderCmpOffers() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartCmpOffers')) || echarts.init(document.getElementById('chartCmpOffers'));
+  const lyIdx = buildLastYearIndex();
+  const lyS = lyIdx && lyIdx.summary ? lyIdx.summary : null;
+  const lyR = lyIdx ? lyIdx.region : null;
+  const items = [{ name: '总体', curr: DATA.summary.totalOffers, prev: lyS ? lyS.totalOffers : null }];
+  [...DATA.regionRank].sort((a,b)=>b.resumes-a.resumes).slice(0,6).forEach(r => {
+    const ly = lyR ? lyR[r.name] : null;
+    items.push({ name: r.name, curr: r.offers, prev: ly ? ly.offers : null });
+  });
+  chart.setOption(_cmpBarOption(items, '#00e676', '#f0a500', 'num'));
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// Offer 率（总体 + 按区域 TOP6）
+function renderCmpRate() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartCmpRate')) || echarts.init(document.getElementById('chartCmpRate'));
+  const lyIdx = buildLastYearIndex();
+  const lyS = lyIdx && lyIdx.summary ? lyIdx.summary : null;
+  const lyR = lyIdx ? lyIdx.region : null;
+  const rate = (o, r) => r > 0 ? +(o / r * 100).toFixed(2) : 0;
+  const items = [{ name: '总体', curr: DATA.summary.offerRate, prev: lyS ? lyS.offerRate : null }];
+  [...DATA.regionRank].sort((a,b)=>b.resumes-a.resumes).slice(0,6).forEach(r => {
+    const ly = lyR ? lyR[r.name] : null;
+    items.push({ name: r.name, curr: rate(r.offers, r.resumes), prev: ly ? rate(ly.offers, ly.resumes) : null });
+  });
+  chart.setOption(_cmpBarOption(items, '#f0a500', '#8a76ff', 'pct'));
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// 院校 TOP15 内推数 两年对比（横向条形图）
+function renderCmpSchool() {
+  const chart = echarts.getInstanceByDom(document.getElementById('chartCmpSchool')) || echarts.init(document.getElementById('chartCmpSchool'));
+  const lyIdx = buildLastYearIndex();
+  const lyS = lyIdx ? lyIdx.school : null;
+  const top15 = (DATA.schoolRank || []).slice(0, 15);
+  const items = top15.map(s => {
+    const ly = lyS ? lyS[String(s.name).trim()] : null;
+    return { name: s.name, curr: s.resumes, prev: ly ? ly.resumes : null };
+  });
+  chart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+      const i = p[0].dataIndex;
+      const it = items[i];
+      let html = `<b>${it.name}</b><br/>` +
+        `<span style="color:#00d4ff">今年 <b>${Number(it.curr).toLocaleString()}</b></span><br/>` +
+        `<span style="color:#7b61ff">去年 <b>${it.prev == null ? '—' : Number(it.prev).toLocaleString()}</b></span>`;
+      if (it.prev != null && it.prev > 0) {
+        const diff = ((it.curr - it.prev) / it.prev) * 100;
+        const sign = diff > 0 ? '+' : '';
+        const cls = diff > 0 ? 'yoy-up' : (diff < 0 ? 'yoy-down' : 'yoy-flat');
+        const arrow = Math.abs(diff) < 0.05 ? '—' : (diff > 0 ? '▲' : '▼');
+        html += `<br/>同比 <span class="${cls}">${arrow} ${sign}${diff.toFixed(1)}%</span>`;
+      } else if (it.prev == null) {
+        html += '<br/><span class="yoy-new">去年无数据</span>';
+      }
+      return html;
+    }},
+    legend: { textStyle: { color: '#b8c5e8', fontSize: 12 }, top: '1%', data: ['今年', '去年'] },
+    grid: { left: '3%', right: '8%', bottom: '3%', top: '8%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { color: '#6b7db3', formatter: v => v >= 1000 ? (v/1000) + 'k' : v }, splitLine: { lineStyle: { color: '#1a2255' } } },
+    yAxis: { type: 'category', inverse: true,
+      data: items.map(d => {
+        if (d.prev == null) return d.name + ' [新]';
+        const diff = ((d.curr - d.prev) / (d.prev || 1)) * 100;
+        const arrow = Math.abs(diff) < 0.05 ? '—' : (diff > 0 ? '▲' : '▼');
+        const sign = diff > 0 ? '+' : '';
+        return d.name + ` ${arrow}${sign}${diff.toFixed(0)}%`;
+      }),
+      axisLabel: { color: '#b8c5e8', fontSize: 11 } },
+    series: [
+      { name: '今年', type: 'bar', barGap: '20%',
+        data: items.map(d => d.curr),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#00d4ff' }, { offset: 1, color: '#7b61ff' }]), borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', color: '#00d4ff', fontSize: 10, fontWeight: 600, formatter: '{c}' } },
+      { name: '去年', type: 'bar',
+        data: items.map(d => d.prev == null ? 0 : d.prev),
+        itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#6b7db3' }, { offset: 1, color: '#4a5a9d' }]), borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', color: '#8a96c4', fontSize: 10, formatter: p => p.value === 0 ? '—' : Number(p.value).toLocaleString() } }
+    ]
+  });
+  window.addEventListener('resize', () => chart.resize());
+}
+
+// ============================================================
+// 🆕 UHR 全员 两年对比（每位 UHR 一对柱：内推数 + Offer 数 两图）
+// ============================================================
+function renderCmpUHR() {
+  const lyIdx = buildLastYearIndex();
+  const lyU = lyIdx ? lyIdx.uhr : null;
+  if (!lyU) {
+    // 没有去年数据，整块兜底文案
+    ['chartCmpUHRResumes','chartCmpUHROffers'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<div style="color:#6b7db3;text-align:center;padding:40px;">去年数据未加载</div>';
+    });
+    const tb = document.querySelector('#cmpUHRTable tbody');
+    if (tb) tb.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#6b7db3;padding:20px;">去年数据未加载</td></tr>';
+    return;
+  }
+
+  // 取并集：今年 uhrRank + 去年 uhrRank（按 name 合并去重）
+  const currList = (DATA.uhrRank || []).map(r => ({
+    name: String(r.name || '').trim(),
+    currResumes: Number(r.resumes) || 0,
+    currOffers: Number(r.offers) || 0,
+  })).filter(r => r.name);
+
+  const seen = new Set(currList.map(r => r.name));
+  const lyOnly = (lyIdx.uhrRank || []).filter(r => {
+    const n = String(r.name || '').trim();
+    return n && !seen.has(n);
+  }).map(r => ({
+    name: String(r.name || '').trim(),
+    currResumes: 0,
+    currOffers: 0,
+  }));
+
+  let merged = [...currList, ...lyOnly].map(r => {
+    const ly = lyU[r.name];
+    return {
+      name: r.name,
+      currResumes: r.currResumes,
+      currOffers: r.currOffers,
+      prevResumes: ly ? (Number(ly.resumes) || 0) : null,
+      prevOffers: ly ? (Number(ly.offers) || 0) : null,
+    };
+  });
+
+  // 排序：今年简历降序；今年简历=0 的（去年新增/已退出）按去年简历降序排在尾部
+  merged.sort((a, b) => {
+    if (b.currResumes !== a.currResumes) return b.currResumes - a.currResumes;
+    return (b.prevResumes || 0) - (a.prevResumes || 0);
+  });
+
+  if (merged.length === 0) return;
+
+  // ---- 图1：内推数 横向条形 ----
+  const renderBarChart = (domId, currKey, prevKey, currColors, label) => {
+    const el = document.getElementById(domId);
+    if (!el) return;
+    const chart = echarts.getInstanceByDom(el) || echarts.init(el);
+
+    chart.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => {
+        const i = p[0].dataIndex;
+        const it = merged[i];
+        const c = it[currKey] || 0;
+        const pv = it[prevKey];
+        let html = `<b>${it.name}</b><br/>` +
+          `<span style="color:#00d4ff">今年 ${label} <b>${Number(c).toLocaleString()}</b></span><br/>` +
+          `<span style="color:#7b61ff">去年 ${label} <b>${pv == null ? '—' : Number(pv).toLocaleString()}</b></span>`;
+        if (pv != null && pv > 0) {
+          const diff = ((c - pv) / pv) * 100;
+          const sign = diff > 0 ? '+' : '';
+          const cls = diff > 0 ? 'yoy-up' : (diff < 0 ? 'yoy-down' : 'yoy-flat');
+          const arrow = Math.abs(diff) < 0.05 ? '—' : (diff > 0 ? '▲' : '▼');
+          html += `<br/>同比 <span class="${cls}">${arrow} ${sign}${diff.toFixed(1)}%</span>`;
+        } else if (pv == null) {
+          html += '<br/><span class="yoy-new">去年无数据</span>';
+        } else if (pv === 0 && c > 0) {
+          html += '<br/><span class="yoy-new">新增</span>';
+        } else if (c === 0 && pv > 0) {
+          html += '<br/><span class="yoy-down">▼ 今年无</span>';
+        }
+        return html;
+      }},
+      legend: { textStyle: { color: '#b8c5e8', fontSize: 12 }, top: '1%', data: ['今年', '去年'] },
+      grid: { left: '3%', right: '12%', bottom: '3%', top: '8%', containLabel: true },
+      xAxis: { type: 'value', axisLabel: { color: '#6b7db3', formatter: v => v >= 1000 ? (v/1000) + 'k' : v }, splitLine: { lineStyle: { color: '#1a2255' } } },
+      yAxis: { type: 'category', inverse: true,
+        data: merged.map(d => {
+          const c = d[currKey] || 0;
+          const pv = d[prevKey];
+          if (pv == null || pv === 0) {
+            if (c > 0 && (pv === 0 || pv == null)) return d.name + ' [新]';
+            return d.name;
+          }
+          if (c === 0 && pv > 0) return d.name + ' [今年无]';
+          const diff = ((c - pv) / pv) * 100;
+          const arrow = Math.abs(diff) < 0.05 ? '—' : (diff > 0 ? '▲' : '▼');
+          const sign = diff > 0 ? '+' : '';
+          return d.name + ` ${arrow}${sign}${diff.toFixed(0)}%`;
+        }),
+        axisLabel: { color: '#b8c5e8', fontSize: 11 } },
+      series: [
+        { name: '今年', type: 'bar', barGap: '20%',
+          data: merged.map(d => d[currKey] || 0),
+          itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, currColors), borderRadius: [0, 4, 4, 0] },
+          label: { show: true, position: 'right', color: '#00d4ff', fontSize: 10, fontWeight: 600, formatter: p => p.value === 0 ? '—' : Number(p.value).toLocaleString() } },
+        { name: '去年', type: 'bar',
+          data: merged.map(d => d[prevKey] == null ? 0 : d[prevKey]),
+          itemStyle: { color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [{ offset: 0, color: '#6b7db3' }, { offset: 1, color: '#4a5a9d' }]), borderRadius: [0, 4, 4, 0] },
+          label: { show: true, position: 'right', color: '#8a96c4', fontSize: 10, formatter: p => p.value === 0 ? '—' : Number(p.value).toLocaleString() } }
+      ]
+    });
+    window.addEventListener('resize', () => chart.resize());
+  };
+
+  renderBarChart(
+    'chartCmpUHRResumes', 'currResumes', 'prevResumes',
+    [{ offset: 0, color: '#00d4ff' }, { offset: 1, color: '#7b61ff' }],
+    '内推'
+  );
+  renderBarChart(
+    'chartCmpUHROffers', 'currOffers', 'prevOffers',
+    [{ offset: 0, color: '#43e97b' }, { offset: 1, color: '#38f9d7' }],
+    'Offer'
+  );
+
+  // ---- 明细表 ----
+  const tbody = document.querySelector('#cmpUHRTable tbody');
+  if (tbody) {
+    const rate = (o, r) => (r > 0 ? (o / r * 100).toFixed(2) + '%' : '—');
+    const yoyCell = (curr, prev) => {
+      if (prev == null) return '<span class="yoy-new">新</span>';
+      if (prev === 0 && curr === 0) return '<span class="yoy-flat">—</span>';
+      if (prev === 0) return '<span class="yoy-new">新增</span>';
+      if (curr === 0) return '<span class="yoy-down">▼ 今年无</span>';
+      const diff = ((curr - prev) / prev) * 100;
+      if (Math.abs(diff) < 0.05) return '<span class="yoy-flat">±0%</span>';
+      const sign = diff > 0 ? '+' : '';
+      const cls = diff > 0 ? 'yoy-up' : 'yoy-down';
+      const arrow = diff > 0 ? '▲' : '▼';
+      return `<span class="${cls}">${arrow} ${sign}${diff.toFixed(1)}%</span>`;
+    };
+    tbody.innerHTML = merged.map((d, i) => {
+      const cR = d.currResumes || 0;
+      const pR = d.prevResumes;
+      const cO = d.currOffers || 0;
+      const pO = d.prevOffers;
+      const currRate = cR > 0 ? rate(cO, cR) : '—';
+      const prevRate = (pR != null && pR > 0) ? rate(pO || 0, pR) : '—';
+      const rowBg = i % 2 === 0 ? 'background:#0c1230;' : '';
+      return `<tr style="border-bottom:1px solid #1a2255;${rowBg}">
+        <td style="padding:8px;color:#e8ecf8;font-weight:600;">${d.name}</td>
+        <td style="padding:8px;text-align:right;color:#00d4ff;font-weight:600;">${cR.toLocaleString()}</td>
+        <td style="padding:8px;text-align:right;color:#8a96c4;">${pR == null ? '—' : pR.toLocaleString()}</td>
+        <td style="padding:8px;text-align:right;">${yoyCell(cR, pR)}</td>
+        <td style="padding:8px;text-align:right;color:#43e97b;font-weight:600;">${cO}</td>
+        <td style="padding:8px;text-align:right;color:#8a96c4;">${pO == null ? '—' : pO}</td>
+        <td style="padding:8px;text-align:right;">${yoyCell(cO, pO)}</td>
+        <td style="padding:8px;text-align:right;color:#00d4ff;">${currRate}</td>
+        <td style="padding:8px;text-align:right;color:#8a96c4;">${prevRate}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+// ============================================================
+// 自动初始化：检查是否已有数据
+// ============================================================
+// ---- 只读 / 浏览模式：URL 带 ?view=1 / ?readonly=1 / ?embed=1 时启用 ----
+const __urlParams = new URLSearchParams(location.search);
+const READONLY = ['1','true','yes'].includes(
+  (__urlParams.get('view') || __urlParams.get('readonly') || __urlParams.get('embed') || '').toLowerCase()
+);
+if (READONLY) {
+  // 隐藏右上"导入 Excel"按钮
+  document.querySelectorAll('.upload-btn, .upload-input').forEach(el => el.style.display = 'none');
+  // 给 body 打个标记，方便后续样式扩展
+  document.body.classList.add('readonly-mode');
+}
+
+(async function init() {
+  try {
+    const res = await fetch('/api/data');
+    const json = await res.json();
+    console.log('[init] /api/data response keys:', Object.keys(json), 'loaded:', json.loaded);
+    if (json.loaded && json.summary) {
+      DATA = json;
+      console.log('[init] DATA loaded, summary totalResumes:', DATA.summary?.totalResumes);
+      overlay.style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      renderAll();
+      return;
+    }
+  } catch(e) { console.error('[init] error:', e); }
+  // 无数据
+  if (READONLY) {
+    // 只读模式：不弹上传遮罩，给一句友好提示
+    overlay.style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    document.getElementById('content').innerHTML =
+      '<div style="text-align:center;padding:80px 20px;color:#b8c5e8;">' +
+      '<div style="font-size:18px;margin-bottom:8px;">📊 看板暂无数据</div>' +
+      '<div style="font-size:13px;color:#6b7db3;">数据源未就绪，请稍后再访问</div>' +
+      '</div>';
+    return;
+  }
+  // 普通模式：显示引导页
+  overlay.style.display = 'flex';
+  document.getElementById('content').style.display = 'none';
+})();
+</script>
+</body>
+</html>
