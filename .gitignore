@@ -29,6 +29,12 @@ snapshots/
 # 业务文档里包含内部域名 / 后台地址，不公开
 权限配置说明.md
 
+# 业务实际使用的 UHR / 垂类配置 JSON（含真实姓名 / 业务线名），
+# 仓库只提交对应的 .example.json 模板，真实文件由部署方自行准备。
+uhr_overrides.json
+category_map.json
+category_dept_map.json
+
 # ───────── 运行日志 ─────────
 *.log
 *.out.log

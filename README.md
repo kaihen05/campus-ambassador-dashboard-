@@ -40,20 +40,24 @@
 
 ```
 campus-ambassador-dashboard/
-├── server.py               # Flask 入口 + 全部 process_data 数据处理
-├── dashboard.html          # 单文件前端看板（ECharts）
-├── echarts.min.js          # 离线版 ECharts 5
-├── watch_folder.py         # 文件夹监听器（新 xlsx 自动跑数据）
-├── set_baseline.py         # 把历史 Excel 烤成 ISO 周快照
-├── check_elite_diff.py     # 临界区精英大使比对脚本
+├── server.py                       # Flask 入口 + 全部 process_data 数据处理
+├── dashboard.html                  # 单文件前端看板（ECharts）
+├── echarts.min.js                  # 离线版 ECharts 5
+├── watch_folder.py                 # 文件夹监听器（新 xlsx 自动跑数据）
+├── set_baseline.py                 # 把历史 Excel 烤成 ISO 周快照
+├── check_elite_diff.py             # 临界区精英大使比对脚本
 ├── requirements.txt
-├── Procfile                # web: gunicorn ...
-├── start.sh                # 一键安装依赖 + 启动脚本
+├── Procfile                        # web: gunicorn ...
+├── start.sh                        # 一键安装依赖 + 启动脚本
+├── uhr_overrides.example.json      # UHR 区域 override 配置模板
+├── category_map.example.json       # 垂类岗位关键词模板
+├── category_dept_map.example.json  # baseline 部门→垂类映射模板
 ├── .gitignore
 └── README.md
 ```
 
 > ⚠️ 仓库**不含**任何业务数据：`*.xlsx / *.csv / *.pkl / snapshots/ / *.log` 全部已加入 `.gitignore`。
+> 业务方真实使用的 `uhr_overrides.json` / `category_map.json` / `category_dept_map.json`（含人名/业务线名）也在 `.gitignore` 里。
 > 真实数据请放在本地或私有存储，勿提交。
 
 ---
@@ -76,13 +80,36 @@ python server.py
 | 变量 | 说明 | 默认 |
 |---|---|---|
 | `PORT` | 监听端口 | `8765` |
-| `UHR_FILE` | UHR-高校映射底表绝对路径（学校 → UHR / 区域） | 仓库内同名 xlsx 不存在时报错 |
+| `UHR_FILE` | UHR-高校映射底表绝对路径（学校 → UHR / 区域） | 同目录 `UHR-高校底表.xlsx`；不存在则启动会提示 |
 | `LAST_YEAR_FILE` | 去年权威数据 xlsx，用于「两年对比」专区 | 不设置则跳过去年模块 |
+| `CATEGORY_BASELINE_FILE` | 历史垂类基线 xlsx | 不设置则用 JSON 配置 |
+| `UHR_OVERRIDES_FILE` | UHR 区域 override JSON 路径 | 同目录 `uhr_overrides.json`；缺省则不做硬覆盖 |
+| `CATEGORY_MAP_FILE` | 垂类岗位关键词 JSON | 同目录 `category_map.json`；缺省则空字典 |
+| `CATEGORY_DEPT_MAP_FILE` | baseline 部门 → 垂类卡片名 JSON | 同目录 `category_dept_map.json`；缺省则空字典 |
+| `WATCH_DIR` | `watch_folder.py` 监听目录 | `~/Desktop` |
+
+### 业务配置 JSON（含敏感名单，不入库）
+
+仓库提交了 3 份 `*.example.json` 模板，**真实文件命名（去掉 `.example`）已加入 `.gitignore`**，由部署方在本机准备：
+
+| 模板文件 | 作用 |
+|---|---|
+| `uhr_overrides.example.json` | UHR 主辖区域硬覆盖 / 跨区 UHR 按学校粒度归属配置 |
+| `category_map.example.json` | 垂类卡片名 → 岗位类关键词数组 |
+| `category_dept_map.example.json` | baseline xlsx 中「部门」字段 → 垂类卡片名 |
+
+```bash
+# 用法：复制模板 → 改成真实业务数据
+cp uhr_overrides.example.json uhr_overrides.json
+cp category_map.example.json category_map.json
+cp category_dept_map.example.json category_dept_map.json
+# 然后按本机业务实际填名单 / 关键词；server.py 启动时会自动加载
+```
 
 ### 可选：启动文件夹监听（新数据自动入库）
 
 ```bash
-# 默认监听 C:\Users\<you>\Desktop 下的 *.xlsx
+# 默认监听 ~/Desktop 下的 *.xlsx；可用 WATCH_DIR 环境变量改
 python watch_folder.py
 ```
 
@@ -127,11 +154,11 @@ CMD ["gunicorn","-w","1","--threads","4","-b","0.0.0.0:8765","--timeout","120","
 
 | 列名 | 示例 | 说明 |
 |---|---|---|
-| 大使姓名 | 张三 | 校园大使 |
-| 外部伯乐对接uhr | xxxhuang(黄某某) | UHR 名字会用 `normalize_uhr()` 抹平全/半角括号 |
+| 大使姓名 | （字符串） | 校园大使 |
+| 外部伯乐对接uhr | （字符串） | UHR 名字会用 `normalize_uhr()` 抹平全/半角括号 |
 | 投递岗位类 | 后台开发 / 算法 / ... | 7 大垂类聚合用 |
 | 简历流程状态 | 已 Offer / 面试中 / ... | Offer 数 / 状态分布用 |
-| 最高学历学校 | 清华大学 / Stanford 等 | 院校排名 + nikkyxu 区域细分用 |
+| 最高学历学校 | 清华大学 / Stanford 等 | 院校排名 + 跨区 UHR 区域细分用 |
 | 是否青云计划 | 是 / 否 | 青云专区筛选 |
 | ... | | 其它字段（联系方式等）一律不入库，只走内存 |
 
@@ -158,10 +185,11 @@ CMD ["gunicorn","-w","1","--threads","4","-b","0.0.0.0:8765","--timeout","120","
 
 - 默认按「该 UHR 名下学校最多归属到哪个区域」自动建字典；
 - 通过 `UHR_REGION_OVERRIDE` 字典做兜底（少数跨区 UHR 显式指定）；
-- **特殊处理**：跨区 UHR `nikkyxu(徐小艳)` 按**最高学历学校粒度**严格区分：
+- **特殊处理**：对于名下学校横跨海外+大陆的 UHR，按**最高学历学校粒度**严格区分：
   - 海外院校（含港澳台/澳大利亚等）→ **亚太**
-  - 中国大陆院校 → **华北**
+  - 中国大陆院校 → 该 UHR 在大陆的主区域（如 **华北**）
   - 实现：`_is_overseas_or_hkmotw_school()` + `_HKMOTW_KEYWORDS` + `_MAINLAND_OVERRIDE_KEYWORDS`（清华/北京/宁波诺丁汉/昆山杜克/西交利物浦/香港中文大学（深圳）等大陆办学的港校分校）。
+  - 具体哪些 UHR 走该特判由 `UHR_REGION_OVERRIDE` 配置，本仓不带名单。
 
 ### 2. 精英大使
 

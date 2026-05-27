@@ -1,7 +1,7 @@
 """
-腾讯校园大使内推数据看板 - Flask 后端
+校园大使内推数据看板 - Flask 后端
 支持 Excel 上传 → 自动处理 → 返回看板数据
-上传 Excel 后数据存于内存（云端部署时可扩展为 COS 持久化）
+上传 Excel 后数据存于内存（云端部署时可扩展为 COS / S3 持久化）
 """
 import os
 import io
@@ -45,27 +45,84 @@ def _resolve_data_file(local_name, env_key, fallback_abs):
 
 
 UHR_FILE = _resolve_data_file(
-    'UHR-高校底表.xlsx', 'UHR_FILE',
-    r'C:\Users\kaiboy\Documents\UHR-高校底表.xlsx'
+    'UHR-高校底表.xlsx', 'UHR_FILE', ''
 )
 LAST_YEAR_FILE = _resolve_data_file('last_year_data.xlsx', 'LAST_YEAR_FILE', '')
 CATEGORY_BASELINE_FILE = _resolve_data_file(
     'category_baseline.xlsx', 'CATEGORY_BASELINE_FILE', ''
 )
 
+
+# ============================================================
+# UHR 业务覆盖配置（从外部 JSON 加载，仓库不带名单）
+# ============================================================
+def _load_uhr_overrides():
+    """读取 uhr_overrides.json（同目录）或 UHR_OVERRIDES_FILE 环境变量指定的文件。
+
+    JSON 结构示例（uhr_overrides.example.json）：
+        {
+          "region_override": {                # UHR 名 → 主辖区域
+            "someuhr(姓名)": "华北"
+          },
+          "by_school_uhrs": {                  # 名下学校横跨海外+大陆的 UHR
+            "someuhr(姓名)": {                 # 按"最高学历学校"粒度归属
+              "overseas_region": "亚太",       # 海外/港澳台 → 哪个区域
+              "mainland_region": "华北"        # 中国大陆     → 哪个区域
+            }
+          }
+        }
+
+    若文件不存在则两个字典都为空（不影响其它功能，只是不做业务硬覆盖）。
+    """
+    candidates = [
+        os.environ.get('UHR_OVERRIDES_FILE'),
+        os.path.join(HERE, 'uhr_overrides.json'),
+    ]
+    for path in candidates:
+        if path and os.path.exists(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    cfg = json.load(f)
+                return (
+                    dict(cfg.get('region_override') or {}),
+                    dict(cfg.get('by_school_uhrs') or {}),
+                )
+            except Exception as e:
+                print(f"  ⚠️ 读取 UHR 覆盖配置失败 {path}: {e}")
+    return {}, {}
+
+
+UHR_REGION_OVERRIDE_CFG, UHR_BY_SCHOOL_CFG = _load_uhr_overrides()
+
 # ============================================================
 # 业务常量
 # ============================================================
 # 默认垂类映射（如果 category_baseline.xlsx 加载失败则使用这个）
-DEFAULT_CATEGORY_MAP = {
-    'S3-HR': ['AI-HR培训生', '项目实习生-人力资源', '人力资源-沟通', '人力资源培训生'],
-    'CSIG-安全': ['安全技术'],
-    'CSIG-销培': ['CSIG技术产品商务培训生'],
-    'IEG': ['游戏发行/运营培训生', '游戏客户端开发', '游戏引擎开发', '游戏策划培训生', '项目实习生-游戏策划', '3D生成基础大模型'],
-    'IEG-美术设计': ['2D角色设计', '2D场景设计', '3D场景设计', '技术美术', '3D角色设计'],
-    'CDG-MA': ['投资分析'],
-    'CDG-广告': ['腾讯营销管培生'],
-}
+# ⚠️ 仓库默认为空 {}，由部署方根据自家业务线在 category_map.json 或 category_baseline.xlsx 提供。
+# 结构示例：
+#   { "技术": ["后台开发","算法","客户端开发"],
+#     "产品": ["产品经理","项目经理"], ... }
+DEFAULT_CATEGORY_MAP = {}
+
+
+def _load_category_map_json():
+    """读 category_map.json（同目录），结构：{ 卡片名: [岗位类关键词, ...] }"""
+    path = os.environ.get('CATEGORY_MAP_FILE') or os.path.join(HERE, 'category_map.json')
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+        if isinstance(cfg, dict):
+            # 简单类型校验
+            return {str(k): list(v) for k, v in cfg.items() if isinstance(v, (list, tuple))}
+    except Exception as e:
+        print(f"  ⚠️ category_map.json 读取失败: {e}")
+    return {}
+
+
+# 仓库默认 DEFAULT_CATEGORY_MAP 为空，启动时再尝试用 JSON 覆盖
+DEFAULT_CATEGORY_MAP.update(_load_category_map_json())
 
 OFFER_STATUSES = ['毕业生已录用', '实习已录用']
 ELITE_THRESHOLD = 200
@@ -178,7 +235,7 @@ def normalize_uhr(name):
     return name
 
 
-# ===== 港澳台/海外院校识别（用于 nikkyxu 等跨区 UHR 按学校粒度归属）=====
+# ===== 港澳台/海外院校识别（用于按学校粒度归属的跨区 UHR）=====
 # 判定优先级（避免 "西安大略大学(加拿大)"、"香港中文大学(深圳)" 等歧义）：
 #   1) 海外 strong override（明确海外学校中文/英文关键词）→ 海外
 #   2) 大陆 override（在大陆办学的港校分校等）→ 大陆
@@ -357,19 +414,23 @@ def load_uhr_df():
     return pd.DataFrame(columns=['筛选项名称', 'UHR', '区域'])
 
 
-# baseline 里的 "部门" → 当前看板的 7 大垂类卡片名
-BASELINE_DEPT_TO_CATEGORY = {
-    'S3': 'S3-HR',
-    'IEG': 'IEG',
-    'IEG-美术设计': 'IEG-美术设计',
-    'IEG美术设计': 'IEG-美术设计',
-    'CSIG-销培': 'CSIG-销培',
-    'CSIG销培': 'CSIG-销培',
-    'CSIG-安全': 'CSIG-安全',
-    'CSIG安全': 'CSIG-安全',
-    'CDG-MA': 'CDG-MA',
-    'CDG-广告': 'CDG-广告',
-}
+# baseline xlsx 里的「部门」 → 当前看板的垂类卡片名
+# ⚠️ 仓库默认为空 {}，由部署方根据自家业务线在 category_dept_map.json 提供。
+# 结构示例：
+#   { "技术线": "技术",
+#     "产品线": "产品",
+#     ... }
+BASELINE_DEPT_TO_CATEGORY = {}
+
+_dept_map_path = os.environ.get('CATEGORY_DEPT_MAP_FILE') or os.path.join(HERE, 'category_dept_map.json')
+if os.path.exists(_dept_map_path):
+    try:
+        with open(_dept_map_path, 'r', encoding='utf-8') as _f:
+            _cfg = json.load(_f)
+        if isinstance(_cfg, dict):
+            BASELINE_DEPT_TO_CATEGORY.update({str(k): str(v) for k, v in _cfg.items()})
+    except Exception as _e:
+        print(f"  ⚠️ category_dept_map.json 读取失败: {_e}")
 
 
 def load_category_map():
@@ -659,24 +720,18 @@ def process_data(df, df_uhr_region):
 
     # ---- 区域 ----
     # 去年数据：UHR 是权威字段（来自「洗数据（排名）」），区域应按 UHR→区域 归属，
-    # 而不是按候选人学校（去年表「最高学历学校」字段大量缺失/不规范，会把 siennaliu(西区)
-    # 12k 简历打散到全国各区，西区严重低估）。
+    # 而不是按候选人学校（去年表「最高学历学校」字段大量缺失/不规范，会把同一区域大 UHR
+    # 的几千条简历错误打散到全国各区，主辖区严重低估）。
     # 今年数据：UHR 字段不可信，仍按候选人学校→区域 映射（原逻辑）。
     if df.attrs.get('uhr_is_authoritative'):
-        # 业务侧硬编码覆盖：当一个 UHR 在 Sheet2 里跨多区域时，按"主辖区"归属。
-        # ⚠️ nikkyxu(徐小艳) 例外处理：她的简历**按学校粒度**区分——
-        #    海外院校（含港澳台）→ 亚太
-        #    中国大陆院校 → 华北
-        # 因此 UHR_REGION_OVERRIDE 里不再固定 nikkyxu，而是后面单独按学校判定
-        # （uhrRank 卡片 region 标签她仍展示"亚太"，因为她核心管辖在亚太）。
-        # jiawenzhou(周嘉雯)：UHR-高校底表 Sheet2 里没有对应学校记录，
-        # 但业务侧确认她属于"华北"线，硬编码补齐。
-        UHR_REGION_OVERRIDE = {
-            'jiawenzhou(周嘉雯)': '华北',
-        }
+        # 业务侧覆盖（从外部 uhr_overrides.json 加载，仓库不带名单）：
+        # 1) region_override：当一个 UHR 在 Sheet2 里跨多区域时，按"主辖区"硬归属。
+        # 2) by_school_uhrs：名下学校横跨海外+大陆的 UHR，按"最高学历学校粒度"区分
+        #    海外院校（含港澳台）→ overseas_region；中国大陆 → mainland_region。
+        UHR_REGION_OVERRIDE = dict(UHR_REGION_OVERRIDE_CFG)
         # 用 UHR→区域 字典（normalize_uhr 已统一全/半角括号）
         # 当一个 UHR 在 Sheet2 里出现多个区域时，按"学校数最多"归属（避免 dict
-        # 推导式"最后写入胜出"导致 nikkyxu 误归华北 10 校而非亚太 7 校）。
+        # 推导式"最后写入胜出"导致跨区 UHR 的简历被错误归并）。
         from collections import Counter
         uhr_region_counter = {}  # uhr_norm -> Counter({region: 学校数})
         for _, r in df_uhr_region.iterrows():
@@ -688,26 +743,30 @@ def process_data(df, df_uhr_region):
         uhr_to_region = {
             u: cnt.most_common(1)[0][0] for u, cnt in uhr_region_counter.items()
         }
-        # 应用业务侧硬编码覆盖
+        # 应用业务侧 override
         for uhr_raw, region in UHR_REGION_OVERRIDE.items():
             uhr_to_region[normalize_uhr(uhr_raw)] = region
-        print(f"  📋 [去年] UHR→区域 字典构建完成（共 {len(uhr_to_region)} 个 UHR），关键映射：")
-        for uhr_raw in sorted(UHR_REGION_OVERRIDE.keys()):
-            print(f"     • {uhr_raw} → {uhr_to_region.get(normalize_uhr(uhr_raw))} (override)")
+        print(f"  📋 [去年] UHR→区域 字典构建完成（共 {len(uhr_to_region)} 个 UHR），override 数：{len(UHR_REGION_OVERRIDE)}")
         df['区域'] = df['uhr名称'].apply(normalize_uhr).map(uhr_to_region)
 
-        # ===== nikkyxu 特殊处理：按"最高学历学校"判定海外/港澳台 vs 大陆 =====
-        nikky_norm = normalize_uhr('nikkyxu(徐小艳)')
-        nikky_mask = df['uhr名称'].apply(normalize_uhr) == nikky_norm
-        if nikky_mask.any():
-            schools = df.loc[nikky_mask, '最高学历学校'].fillna('').astype(str)
+        # ===== 名下学校横跨海外+大陆的 UHR：按"最高学历学校"粒度判定 =====
+        for uhr_raw, cfg in UHR_BY_SCHOOL_CFG.items():
+            ovs_region = cfg.get('overseas_region')
+            mlb_region = cfg.get('mainland_region')
+            if not (ovs_region and mlb_region):
+                continue
+            u_norm = normalize_uhr(uhr_raw)
+            mask = df['uhr名称'].apply(normalize_uhr) == u_norm
+            if not mask.any():
+                continue
+            schools = df.loc[mask, '最高学历学校'].fillna('').astype(str)
             is_oversea = schools.apply(_is_overseas_or_hkmotw_school)
-            df.loc[nikky_mask & is_oversea, '区域'] = '亚太'
-            df.loc[nikky_mask & ~is_oversea, '区域'] = '华北'
-            n_total = int(nikky_mask.sum())
-            n_ap = int((nikky_mask & is_oversea).sum())
-            n_hb = int((nikky_mask & ~is_oversea).sum())
-            print(f"  🎯 [去年] nikkyxu 按学校粒度归属：共 {n_total} 条，亚太(海外/港澳台) {n_ap} 条，华北(中国大陆) {n_hb} 条")
+            df.loc[mask & is_oversea, '区域'] = ovs_region
+            df.loc[mask & ~is_oversea, '区域'] = mlb_region
+            n_total = int(mask.sum())
+            n_ovs = int((mask & is_oversea).sum())
+            n_mlb = int((mask & ~is_oversea).sum())
+            print(f"  🎯 [去年] UHR(by-school) 共 {n_total} 条 → {ovs_region} {n_ovs} 条 / {mlb_region} {n_mlb} 条")
 
         # UHR 缺失或无区域映射的简历，回退按学校映射；再不行打"其他"
         missing = df['区域'].isna() | (df['区域'].astype(str).str.strip() == '')
@@ -813,7 +872,7 @@ def process_data(df, df_uhr_region):
     uhr_counts = uhr_counts[~uhr_counts.index.isin(['未知UHR'])]
     uhr_offers = df[offer_mask].groupby('UHR_final').size().to_dict()
     # uhr_region_map: 跟前面"区域映射"逻辑严格一致（按学校数最多 + 业务 override），
-    # 否则 uhrRank 卡片里 nikkyxu 又会显示华北而不是亚太
+    # 否则 uhrRank 卡片里跨区 UHR 又会显示错误的主辖区。
     from collections import Counter as _Counter
     _uhr_region_counter = {}
     for _, _r in df_uhr_region.iterrows():
@@ -824,11 +883,15 @@ def process_data(df, df_uhr_region):
     uhr_region_map = {
         _u: _cnt.most_common(1)[0][0] for _u, _cnt in _uhr_region_counter.items()
     }
-    # 业务侧硬编码覆盖（与上方 process_data 区域映射保持一致）
-    _UHR_REGION_OVERRIDE = {
-        'nikkyxu(徐小艳)': '亚太',
-        'jiawenzhou(周嘉雯)': '华北',
-    }
+    # 业务侧覆盖（与上方 process_data 区域映射保持一致）：
+    # 1) UHR_REGION_OVERRIDE_CFG：直接固定区域；
+    # 2) UHR_BY_SCHOOL_CFG：跨海外+大陆的 UHR，卡片标签默认展示其 overseas_region
+    #    （因为这类 UHR 一般核心管辖在海外/港澳台），明细按学校粒度展示由 process_data 处理。
+    _UHR_REGION_OVERRIDE = dict(UHR_REGION_OVERRIDE_CFG)
+    for _uhr_raw, _cfg in UHR_BY_SCHOOL_CFG.items():
+        _ovs_region = _cfg.get('overseas_region')
+        if _ovs_region:
+            _UHR_REGION_OVERRIDE.setdefault(_uhr_raw, _ovs_region)
     for _uhr_raw, _region in _UHR_REGION_OVERRIDE.items():
         uhr_region_map[normalize_uhr(_uhr_raw)] = _region
     uhr_rank = [
@@ -1345,7 +1408,7 @@ def get_snapshots():
 # ============================================================
 def _bootstrap():
     print("=" * 50)
-    print("🚀 腾讯校园大使数据看板 - 启动初始化")
+    print("🚀 校园大使数据看板 - 启动初始化")
     print(f"   UHR_FILE              = {UHR_FILE}  (exists={os.path.exists(UHR_FILE)})")
     print(f"   LAST_YEAR_FILE        = {LAST_YEAR_FILE}  (exists={os.path.exists(LAST_YEAR_FILE)})")
     print(f"   CATEGORY_BASELINE_FILE= {CATEGORY_BASELINE_FILE}  (exists={os.path.exists(CATEGORY_BASELINE_FILE)})")

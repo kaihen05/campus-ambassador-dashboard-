@@ -1,0 +1,11 @@
+{
+  "_comment": "复制本文件为 category_dept_map.json（不会被 git 追踪），按本机 baseline xlsx 里的‘部门’列实际值填充。",
+  "_comment2": "用途：当部署方使用 category_baseline.xlsx 提供历史标准时，把 baseline 里的‘部门’名映射到看板上的‘垂类卡片名’，从而把更细粒度的关键词扩进 CATEGORY_MAP。",
+  "_comment3": "结构：{ baseline 里的部门字符串: 看板垂类卡片名 }；可一对多别名（同一卡片名重复出现即可）。",
+
+  "技术线": "技术",
+  "产品线": "产品",
+  "设计线": "设计",
+  "数据线": "数据",
+  "市场线": "市场"
+}

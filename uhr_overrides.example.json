@@ -1,0 +1,17 @@
+{
+  "_comment": "复制本文件为 uhr_overrides.json（不会被 git 追踪），按本机业务实际填充。两段都可选填。",
+
+  "region_override": {
+    "_comment": "UHR 名 → 主辖区域。当一个 UHR 在 UHR-高校底表 Sheet2 里跨多区域出现时，按这里指定的区域硬归属。",
+    "someuhr1(姓名一)": "华北",
+    "someuhr2(姓名二)": "华东"
+  },
+
+  "by_school_uhrs": {
+    "_comment": "名下学校横跨海外+大陆的 UHR：按‘最高学历学校’粒度归属。海外/港澳台 → overseas_region；中国大陆 → mainland_region。",
+    "someuhr3(姓名三)": {
+      "overseas_region": "亚太",
+      "mainland_region": "华北"
+    }
+  }
+}

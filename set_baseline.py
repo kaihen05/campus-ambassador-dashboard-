@@ -4,13 +4,13 @@
 
 用法：
   # 1) 用文件名里包含的日期(如 5.14_最终版.xlsx) 自动算出 ISO 周(W20)
-  python set_baseline.py "C:\\Users\\kaiboy\\Desktop\\5.14_最终版.xlsx"
+  python set_baseline.py "/path/to/5.14_最终版.xlsx"
 
   # 2) 显式指定周键
-  python set_baseline.py "C:\\path\\to\\xxx.xlsx" --week 2026-W20
+  python set_baseline.py "/path/to/xxx.xlsx" --week 2026-W20
 
   # 3) 用文件「最后修改时间」作为周键
-  python set_baseline.py "C:\\path\\to\\xxx.xlsx" --use-mtime
+  python set_baseline.py "/path/to/xxx.xlsx" --use-mtime
 
   # 4) 强制覆盖已存在的同名快照
   python set_baseline.py "..." --force
@@ -163,8 +163,8 @@ def main():
     print(f"")
     print(f"✅ 下一步：")
     print(f"   1) 本地：浏览器强刷 http://127.0.0.1:8765/  → 看「📈 本周新增 — vs 上周基线」")
-    print(f"   2) 远端：把这个 pkl 推到 AnyDev：")
-    print(f"      any dev env agent upload -e <env_id> '{target}' '/root/campus-dashboard/snapshots/{week_key}.pkl'")
+    print(f"   2) 远端：把这个 pkl 推到部署服务器：")
+    print(f"      scp '{target}' user@host:/path/to/snapshots/{week_key}.pkl")
 
 
 if __name__ == '__main__':

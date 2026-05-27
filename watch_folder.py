@@ -11,7 +11,7 @@ import sys
 
 # 工作目录
 WORK_DIR = os.path.dirname(os.path.abspath(__file__))
-WATCH_DIR = r'C:\Users\kaiboy\Desktop'          # 监控目录（可修改）
+WATCH_DIR = os.environ.get('WATCH_DIR', os.path.expanduser('~/Desktop'))  # 监控目录（可改环境变量）
 TARGET_PATTERN = '*.xlsx'                         # 检测目标
 PROCESSED_DIR = os.path.join(WORK_DIR, 'processed')  # 已处理文件归档
 
